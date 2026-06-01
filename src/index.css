@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-[#FFD700]: #FFD700;
+  --color-[#FF3333]: #FF3333;
+}
+
+/* Custom scrollbar to match sleek dark look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f0f12;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff3333;
+}
+
+/* Glow effects and standard animation support */
+.neon-glow-gold {
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+}
+
+.neon-glow-red {
+  box-shadow: 0 0 15px rgba(255, 51, 51, 0.2);
+}
+
+.neon-border-red:focus {
+  border-color: #FF3333;
+  box-shadow: 0 0 10px rgba(255, 51, 51, 0.3);
+}
+
+.neon-border-gold:focus {
+  border-color: #FFD700;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}

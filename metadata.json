@@ -1,0 +1,8 @@
+{
+  "name": "CarX Street Store",
+  "description": "Storefront for purchasing pre-made accounts and ordering ban-safe resource patches",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

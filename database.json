@@ -1,0 +1,132 @@
+{
+  "accounts": [
+    {
+      "id": "3e589bdc-15a5-48b9-8798-29ea30e70332",
+      "name": "Elite High-Octane Garage",
+      "silver": 25000000,
+      "gold": 8500,
+      "xp": 45,
+      "cars_unlocked": 12,
+      "maps_unlocked": 10,
+      "price": 499,
+      "image_url": "hypercar_pack_bg",
+      "car_images": "https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&q=80&w=800,https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80&w=800,https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=800",
+      "snapshot_url": "https://street-prod.carx-online.com/snapshots/elite.json",
+      "credentials": "cf7f10223a516b605e9e3138:0f11b7484d013397e294bbd4527ce242f44a96a42d9cad1a63857da5984d6cbc38a79e96450998290aaeaf47b57a9d89fae4f2c31686458f966551386c86caee3d58f4:3a739411b9ae9f4711061156bec7969f",
+      "is_sold": false,
+      "created_at": "2026-05-29T15:14:40.891Z"
+    },
+    {
+      "id": "cb02aed3-bf30-4e4b-97cb-bc6046e729a6",
+      "name": "Tokyo Drift Starter Pack",
+      "silver": 12000000,
+      "gold": 4000,
+      "xp": 25,
+      "cars_unlocked": 7,
+      "maps_unlocked": 4,
+      "price": 299,
+      "image_url": "drift_car_pack_bg",
+      "car_images": "https://images.unsplash.com/photo-1611245801312-51a8a014be0e?auto=format&fit=crop&q=80&w=800,https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&q=80&w=800",
+      "snapshot_url": "https://street-prod.carx-online.com/snapshots/tokyo.json",
+      "credentials": "ea394902fff52d2d51221491:e4ae8dff877b37b62df73d804f575df584be990e2d34a5b94fc0e1affdbeff1a73ec2a7dca587abcd81cfd7067fabe024245e4a0b08bb2cf46e8e317edeaef59cc5a:2e94326e82599a477623905e4b13025c",
+      "is_sold": false,
+      "created_at": "2026-05-31T15:14:40.891Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "fa3290de-8c83-4927-b50a-810a99723fa3",
+      "order_id": "ORD-9X12B",
+      "order_type": "account",
+      "customer_email": "hanoye0@gmail.com",
+      "account_id": "cb02aed3-bf30-4e4b-97cb-bc6046e729a6",
+      "delivered_email": "acct-ord-9x12b@carx.shop",
+      "delivered_password": "da16ac95605b7d65b04d8444:b5ea3ae23562785d8476:935e2cd4578f55af47abfddb6875c324",
+      "amount_paid": 299,
+      "gcash_ref_number": "2039182736451",
+      "gcash_receipt_url": "",
+      "gcash_receipt_data": {
+        "sender_name": "JUAN DELA CRUZ",
+        "reference_number": "2039182736451",
+        "amount_php": 299,
+        "datetime": "2026-05-31 02:30 PM",
+        "recipient": "CARX STORE"
+      },
+      "status": "completed",
+      "created_at": "2026-06-01T11:14:40.891Z"
+    }
+  ],
+  "patch_pricing": [
+    {
+      "id": 1,
+      "patch_type": "ban_safe_1",
+      "label": "Ban-Safe Pack 1",
+      "price": 300,
+      "description": "10M Silver + 6K Gold"
+    },
+    {
+      "id": 2,
+      "patch_type": "ban_safe_2",
+      "label": "Ban-Safe Pack 2",
+      "price": 100,
+      "description": "6M Silver + 1K Gold"
+    },
+    {
+      "id": 3,
+      "patch_type": "map_unlock",
+      "label": "Map Unlock Only",
+      "price": 100,
+      "description": "Unlocks all maps"
+    },
+    {
+      "id": 4,
+      "patch_type": "max_nitro",
+      "label": "Max Nitro",
+      "price": 100,
+      "description": "Max nitro for one car"
+    },
+    {
+      "id": 5,
+      "patch_type": "inject_car",
+      "label": "Inject Custom Car",
+      "price": 300,
+      "description": "Inject a specific car by Car ID"
+    },
+    {
+      "id": 6,
+      "patch_type": "max_level",
+      "label": "Max Level Only",
+      "price": 150,
+      "description": "Instantly set account level to max"
+    },
+    {
+      "id": 7,
+      "patch_type": "custom_resources",
+      "label": "Custom Resources",
+      "price": 200,
+      "description": "Custom silver/gold amount"
+    }
+  ],
+  "settings": [
+    {
+      "key": "gcash_number",
+      "value": "09123456789"
+    },
+    {
+      "key": "gcash_qr_url",
+      "value": "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png"
+    },
+    {
+      "key": "telegram_link",
+      "value": "https://t.me/CarXResellerSupportBot"
+    },
+    {
+      "key": "is_online",
+      "value": "true"
+    },
+    {
+      "key": "maintenance_mode",
+      "value": "false"
+    }
+  ]
+}

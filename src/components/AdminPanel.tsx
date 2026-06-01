@@ -587,7 +587,15 @@ export default function AdminPanel() {
                       </td>
                       <td className="p-4 font-mono whitespace-nowrap">
                         <div className="space-y-0.5">
-                          <p className="text-white text-[11px]">{o.gcash_ref_number || "[No Ref Number]"}</p>
+                          {o.gcash_ref_number || o.gcash_receipt_data?.reference_number || o.gcash_receipt_data?.gcash_ref_number ? (
+                            <p className="text-white text-[11px] font-bold">
+                              {o.gcash_ref_number || o.gcash_receipt_data?.reference_number || o.gcash_receipt_data?.gcash_ref_number}
+                            </p>
+                          ) : (
+                            <p className="text-[#FF3333] text-[9px] font-bold uppercase p-0.5 bg-red-400/5 border border-red-500/20 rounded inline-block">
+                              MISSING REF
+                            </p>
+                          )}
                           {o.gcash_receipt_data?.sender_name && (
                             <p className="text-[9px] text-zinc-500 font-sans tracking-wide">Sender: {o.gcash_receipt_data.sender_name}</p>
                           )}

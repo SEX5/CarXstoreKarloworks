@@ -443,19 +443,40 @@ async function getOrderById(orderId: string): Promise<any> {
 }
 
 async function checkRefNumberUsed(refNumber: string): Promise<boolean> {
+  if (!refNumber) return false;
+  const normalizedRef = String(refNumber).trim();
+  
   if (useRealSupabase && supabaseAdmin) {
     try {
-      // Fetch all orders instead of filtering by column, to avoid cache errors
-      const { data, error } = await supabaseAdmin.from("orders").select("gcash_ref_number");
-      if (!error && data) {
-         return data.some((o: any) => o.gcash_ref_number === refNumber);
+      // NOTE: We only select 'gcash_receipt_data' because the top-level 'gcash_ref_number' column 
+      // is reported missing in the Supabase schema. We scan the JSON instead.
+      const { data, error } = await supabaseAdmin.from("orders").select("gcash_receipt_data");
+      
+      if (error) {
+        console.error("[SUPABASE] Error fetching orders for ref check:", error.message);
+        return false;
+      }
+
+      if (data) {
+         const found = data.some((o: any) => {
+           const json = o.gcash_receipt_data || {};
+           return String(json.reference_number || "").trim() === normalizedRef || 
+                  String(json.gcash_ref_number || "").trim() === normalizedRef;
+         });
+         if (found) console.warn(`[SECURITY] Duplicate blocked! GCash Ref: ${normalizedRef}`);
+         return found;
       }
     } catch (err) {
       console.error("Supabase ref number check error:", err);
     }
   }
+  
   const db = getLocalDB();
-  return db.orders.some((o: any) => o.gcash_ref_number === refNumber);
+  return db.orders.some((o: any) => 
+    String(o.gcash_ref_number || "").trim() === normalizedRef || 
+    String(o.gcash_receipt_data?.reference_number || "").trim() === normalizedRef || 
+    String(o.gcash_receipt_data?.gcash_ref_number || "").trim() === normalizedRef
+  );
 }
 
 async function createModdedAccountAPI(customerEmail: string, password: string, accountId: string): Promise<any> {
@@ -649,8 +670,21 @@ async function getMasterCatalogAPI(): Promise<any> {
 }
 
 async function addOrder(order: any): Promise<any> {
+  const gcashRef = order.gcash_ref_number || order.gcash_receipt_data?.reference_number || order.gcash_receipt_data?.gcash_ref_number;
+  console.log(`[DB] Attempting to add order. Ref: ${gcashRef}, Type: ${order.order_type}`);
+  
+  // Security: Check for duplicate reference number again before database insertion
+  if (gcashRef) {
+    const isUsed = await checkRefNumberUsed(gcashRef);
+    if (isUsed) {
+      console.warn(`[SECURITY] addOrder blocked: Duplicate Reference Number ${gcashRef}`);
+      logSystemError("SECURITY_BREACH", `Duplicate Order Data Blocked: ${gcashRef}`, { order_id: order.order_id });
+      throw new Error("This transaction reference number has already been used.");
+    }
+  }
+
   const customId = `ORD-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-  const newOrder = {
+  const newOrder: any = {
     id: crypto.randomUUID(),
     order_id: order.order_id || customId,
     order_type: order.order_type,
@@ -659,19 +693,26 @@ async function addOrder(order: any): Promise<any> {
     delivered_email: order.delivered_email || null,
     delivered_password: order.delivered_password ? encrypt(order.delivered_password) : null,
     amount_paid: Number(order.amount_paid) || 0,
-    // Keep it in JSONB only
     gcash_receipt_url: order.gcash_receipt_url || "",
     gcash_receipt_data: {
         ...(order.gcash_receipt_data || {}),
-        gcash_ref_number: order.gcash_ref_number,
+        gcash_ref_number: gcashRef,
+        reference_number: gcashRef,
         carx_email: order.carx_email,
         carx_password: order.carx_password ? encrypt(order.carx_password) : null,
         patch_type: order.patch_type || order.gcash_receipt_data?.patch_type,
-        custom_details: order.custom_details
+        custom_details: order.custom_details,
+        amount_paid: Number(order.amount_paid) || 0
     },
     status: order.status || "pending_fulfillment",
     created_at: new Date().toISOString()
   };
+
+  // Persist gcash_ref_number as a top-level field if NOT using Supabase (to avoid schema cache issues)
+  // or if you know the column exists. For now, strictly JSONB for Supabase safety.
+  if (!useRealSupabase) {
+    newOrder.gcash_ref_number = gcashRef || null;
+  }
 
   if (useRealSupabase && supabaseAdmin) {
     try {
@@ -996,7 +1037,14 @@ app.post("/api/admin/patch-pricing", verifyAuthToken, async (req, res) => {
 // Create Order (public, is triggered after manual GCash check succeeds)
 app.post("/api/orders", async (req, res) => {
   try {
-    const created = await addOrder(req.body);
+    const orderData = req.body;
+    console.log("[API] Incoming order creation request:", JSON.stringify({
+       ref: orderData.gcash_ref_number,
+       amount: orderData.amount_paid,
+       status: orderData.status
+    }));
+
+    const created = await addOrder(orderData);
     
     // Auto-inject for patch orders
     if (created.order_type === 'patch') {
@@ -1337,7 +1385,8 @@ Expected Output Format:
     const isUsed = await checkRefNumberUsed(refNum);
     if (isUsed) {
       const errorMsg = `This GCash Ref Number (${refNum}) was already submitted for another purchase! Double spending is prohibited.`;
-      logSystemError("GCASH_SCAN_FAILED", errorMsg, { fileName, expectedAmount, refNum });
+      console.warn(`[SECURITY] Duplicate submission attempt blocked: ${refNum}`);
+      logSystemError("SECURITY_BREACH", `Duplicate GCash Reference Number Attempt: ${refNum}`, { fileName, refNum });
       return res.json({ success: false, error: errorMsg });
     }
 

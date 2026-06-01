@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ShieldCheck, Mail, Key, User, Flame, Loader2, Sparkles, QrCode, UploadCloud, Copy, ArrowRight, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { formatResourceQuantity } from "./utils";
 
 interface OrderPatchProps {
   onNavigate: (view: string, arg?: string) => void;
@@ -415,7 +416,7 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                         <div>
                           <div className="flex justify-between text-[11px] font-mono text-zinc-400 mb-1">
                             <span>SILVER OVERRIDE</span>
-                            <strong className="text-white">{(customSilver / 1000000).toFixed(1)}M</strong>
+                            <strong className="text-white">{formatResourceQuantity(customSilver)}</strong>
                           </div>
                           <input
                             type="range"
@@ -432,7 +433,7 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                         <div>
                           <div className="flex justify-between text-[11px] font-mono text-zinc-400 mb-1">
                             <span>GOLD CALIBRATOR</span>
-                            <strong className="text-white">{(customGold / 1000).toFixed(1)}K</strong>
+                            <strong className="text-white">{formatResourceQuantity(customGold)}</strong>
                           </div>
                           <input
                             type="range"

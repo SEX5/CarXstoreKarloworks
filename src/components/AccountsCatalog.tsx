@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Check, Coins, Trophy, Car, Map, ShieldCheck, Mail, Loader2, Sparkles, QrCode, UploadCloud, Copy, ArrowRight, ArrowLeft, KeyRound, ExternalLink, RefreshCw } from "lucide-react";
 import { CarXAccount } from "../types";
 import { motion, AnimatePresence } from "motion/react";
+import { formatResourceQuantity, formatResourceQuantityDetailed } from "../utils";
 
 const driftCarImg = "https://images.unsplash.com/photo-1611245801312-51a8a014be0e?auto=format&fit=crop&q=80&w=1200";
 const hypercarImg = "https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&q=80&w=1200";
@@ -378,14 +379,14 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                 <div className="flex flex-col">
                   <span className="mb-0.5 text-[9px] text-zinc-600">SILVER WALLET</span>
                   <span className="text-white text-sm font-sans tracking-tight font-bold">
-                    {acc.silver >= 1000000 ? `${(acc.silver / 1000000).toFixed(1)}M` : acc.silver.toLocaleString()}
+                    {formatResourceQuantity(acc.silver)}
                   </span>
                 </div>
 
                 <div className="flex flex-col">
                   <span className="mb-0.5 text-[9px] text-zinc-600">GOLD COPIES</span>
                   <span className="text-[#FFD700] text-sm font-sans tracking-tight font-bold">
-                    {acc.gold >= 1000 ? `${(acc.gold / 1000).toFixed(1)}K` : acc.gold.toLocaleString()}
+                    {formatResourceQuantity(acc.gold)}
                   </span>
                 </div>
 
@@ -933,7 +934,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                         <span className="text-[10px] uppercase font-mono font-bold tracking-wider">SILVER WALLET</span>
                       </div>
                       <span className="text-white font-sans font-bold text-xs">
-                        {inspectingAccount.silver >= 1000000 ? `${(inspectingAccount.silver / 1000000).toFixed(1)} Million` : inspectingAccount.silver.toLocaleString()}
+                        {formatResourceQuantityDetailed(inspectingAccount.silver, 'Silver')}
                       </span>
                     </div>
 
@@ -943,7 +944,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                         <span className="text-[10px] uppercase font-mono font-bold tracking-wider">GOLD COPIES</span>
                       </div>
                       <span className="text-[#FFD700] font-sans font-bold text-xs">
-                        {inspectingAccount.gold >= 1000 ? `${(inspectingAccount.gold / 1000).toFixed(1)}K Gold` : inspectingAccount.gold.toLocaleString()}
+                        {formatResourceQuantityDetailed(inspectingAccount.gold, 'Gold')}
                       </span>
                     </div>
 

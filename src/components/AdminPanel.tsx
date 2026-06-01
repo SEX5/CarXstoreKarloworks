@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { CarXAccount, PatchOrder, Stats } from "../types";
 import { motion, AnimatePresence } from "motion/react";
+import { formatResourceQuantity } from "../utils";
 
 export default function AdminPanel() {
   const [token, setToken] = useState<string | null>(localStorage.getItem("carx_admin_token"));
@@ -887,7 +888,7 @@ export default function AdminPanel() {
                         <span className="text-xs font-mono font-bold text-[#FFD700]">₱{Number(a.price).toFixed(2)}</span>
                       </div>
                       <p className="text-[10px] text-zinc-500 font-mono mt-1">
-                        Level: {a.xp} XP | Silver: {a.silver.toLocaleString()} | Gold: {a.gold.toLocaleString()} | snapshot Url: {a.snapshot_url ? "YES" : "NO"}
+                        Level: {a.xp} XP | Silver: {formatResourceQuantity(a.silver)} | Gold: {formatResourceQuantity(a.gold)} | snapshot Url: {a.snapshot_url ? "YES" : "NO"}
                       </p>
                       <p className="text-[10px] text-indigo-400 mt-1 font-mono bg-black px-2 py-0.5 border border-zinc-900 rounded inline-block">
                         🔐 logins: {a.decoded_credentials}

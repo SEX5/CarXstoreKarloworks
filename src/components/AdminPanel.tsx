@@ -57,6 +57,8 @@ export default function AdminPanel() {
   const [uploadingCar, setUploadingCar] = useState(false);
   const [accFormError, setAccFormError] = useState<string | null>(null);
   const [accFormSuccess, setAccFormSuccess] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [isLocalUpload, setIsLocalUpload] = useState(false);
 
   // Dynamic Patch Pricing edit states
   const [editPrices, setEditPrices] = useState<{ [key: string]: number }>({});
@@ -173,7 +175,7 @@ export default function AdminPanel() {
     }
   };
 
-  // Add preset accounts
+  // Add or Update preset accounts
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccFormError(null);
@@ -185,26 +187,31 @@ export default function AdminPanel() {
     }
     
     try {
-      const resp = await fetch("/api/admin/accounts", {
-        method: "POST",
+      const payload = {
+        name: newAccName,
+        silver: newAccSilver,
+        gold: newAccGold,
+        xp: newAccXp,
+        cars_unlocked: newAccCars,
+        maps_unlocked: newAccMaps,
+        price: newAccPrice,
+        snapshot_url: newAccSnapUrl,
+        image_url: newAccImageUrl,
+        car_images: newAccCarImages,
+        email: newAccEmail,
+        password: newAccPassword
+      };
+
+      const endpoint = editingAccountId ? `/api/admin/accounts/${editingAccountId}/update` : "/api/admin/accounts";
+      const method = "POST";
+      
+      const resp = await fetch(endpoint, {
+        method: method,
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: newAccName,
-          silver: newAccSilver,
-          gold: newAccGold,
-          xp: newAccXp,
-          cars_unlocked: newAccCars,
-          maps_unlocked: newAccMaps,
-          price: newAccPrice,
-          snapshot_url: newAccSnapUrl,
-          image_url: newAccImageUrl,
-          car_images: newAccCarImages,
-          email: newAccEmail,
-          password: newAccPassword
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!resp.ok) {
@@ -213,17 +220,48 @@ export default function AdminPanel() {
       }
 
       setAccFormSuccess(true);
-      setNewAccName("");
-      setNewAccEmail("");
-      setNewAccPassword("");
-      setNewAccSnapUrl("");
-      setNewAccImageUrl("");
-      setNewAccCarImages("");
+      if (!editingAccountId) {
+        setNewAccName("");
+        setNewAccEmail("");
+        setNewAccPassword("");
+        setNewAccSnapUrl("");
+        setNewAccImageUrl("");
+        setNewAccCarImages("");
+      }
+      setEditingAccountId(null);
       loadDashboardData();
 
     } catch (err: any) {
       setAccFormError(err.message);
     }
+  };
+
+  const handleEditAccount = (acc: any) => {
+    setEditingAccountId(acc.id);
+    setNewAccName(acc.name);
+    setNewAccSilver(acc.silver);
+    setNewAccGold(acc.gold);
+    setNewAccXp(acc.xp);
+    setNewAccCars(acc.cars_unlocked);
+    setNewAccMaps(acc.maps_unlocked);
+    setNewAccPrice(acc.price);
+    setNewAccSnapUrl(acc.snapshot_url || "");
+    setNewAccImageUrl(acc.image_url || "");
+    setNewAccCarImages(acc.car_images || "");
+    
+    // Credentials are JSON stringified and encrypted in DB
+    // We try to decode them if they look like the expected format
+    if (acc.credentials && acc.decoded_credentials) {
+      const parts = acc.decoded_credentials.split(" | ");
+      const emailPart = parts[0]?.split(": ")[1];
+      const passPart = parts[1]?.split(": ")[1];
+      setNewAccEmail(emailPart || "");
+      setNewAccPassword(passPart || "");
+    }
+    
+    // Jump to form
+    const formElement = document.getElementById("account-assemble-form");
+    if (formElement) formElement.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, isCarImage: boolean) => {
@@ -271,6 +309,12 @@ export default function AdminPanel() {
         setNewAccCarImages(prev => prev ? `${prev},${url}` : url);
       } else {
         setNewAccImageUrl(url);
+      }
+      
+      if (url.startsWith("/uploads/")) {
+        setIsLocalUpload(true);
+      } else {
+        setIsLocalUpload(false);
       }
     } catch (err: any) {
       setAccFormError("Upload failed: " + err.message);
@@ -672,12 +716,53 @@ export default function AdminPanel() {
       {activeTab === "accounts" && (
         <div className="grid lg:grid-cols-12 gap-8 animate-fade-in" id="admin-tab-accounts">
           
-          {/* Assembler form */}
-          <div className="lg:col-span-5 bg-[#0A0A0A] border border-[#1A1A1A] p-6 md:p-8 rounded space-y-6">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-[#FFD700] border-b border-zinc-900 pb-2 flex items-center gap-2 font-mono">
-              <span className="w-1.5 h-1.5 bg-[#FFD700] rounded-full animate-ping"></span>
-              Assemble Stock Garage
-            </h2>
+          <div className="lg:col-span-12" id="account-assemble-form">
+            <div className="bg-[#0A0A0A] border border-[#1A1A1A] p-6 md:p-8 rounded space-y-6">
+              <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
+                <h2 className="text-sm font-bold uppercase tracking-widest text-[#FFD700] flex items-center gap-2 font-mono">
+                  <span className="w-1.5 h-1.5 bg-[#FFD700] rounded-full animate-ping"></span>
+                  {editingAccountId ? "Edit Stock Garage" : "Assemble Stock Garage"}
+                </h2>
+                {editingAccountId && (
+                  <button 
+                    onClick={() => {
+                      setEditingAccountId(null);
+                      setNewAccName("");
+                      setNewAccEmail("");
+                      setNewAccPassword("");
+                      setNewAccSnapUrl("");
+                      setNewAccImageUrl("");
+                      setNewAccCarImages("");
+                    }}
+                    className="text-[9px] font-mono text-zinc-500 hover:text-white uppercase"
+                  >
+                    Cancel Editing
+                  </button>
+                )}
+              </div>
+
+              <div className="bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-sm space-y-2">
+                <div className="flex items-center gap-2 text-indigo-400">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider">Storage Persistence Guide</span>
+                </div>
+                <p className="text-[9px] text-zinc-500 leading-normal">
+                  To ensure images (Garage Vehicles & Receipts) never disappear after a server restart, you MUST:
+                  <br />- 1. Create a bucket in <strong className="text-white">Supabase Storage</strong> named <strong className="text-white">package-images</strong>.
+                  <br />- 2. Set the bucket to <strong className="text-white">Public</strong> in Supabase settings.
+                  <br />- 3. Uploaded images will Then be hosted on Supabase CDN permanently.
+                </p>
+              </div>
+
+              {isLocalUpload && (
+                <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded flex items-start gap-3">
+                  <span className="text-amber-500 text-lg">⚠</span>
+                  <div>
+                    <p className="text-[10px] font-mono text-amber-500 font-bold uppercase">Local Storage Detected</p>
+                    <p className="text-[9px] text-zinc-400 leading-tight">Images are saving to the local server folder. These will disappear if the server restarts. Create a <strong className="text-white">package-images</strong> bucket in Supabase Storage for permanent persistence.</p>
+                  </div>
+                </div>
+              )}
 
             <form onSubmit={handleAddAccount} className="space-y-4 font-sans text-xs text-zinc-400">
               <div className="space-y-1">
@@ -858,14 +943,15 @@ export default function AdminPanel() {
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-[#FFD700] hover:bg-white text-black font-black uppercase text-xs font-mono tracking-wider transition-colors cursor-pointer"
+                className={`w-full py-2.5 font-black uppercase text-xs font-mono tracking-wider transition-colors cursor-pointer ${editingAccountId ? "bg-cyan-500 hover:bg-white text-black" : "bg-[#FFD700] hover:bg-white text-black"}`}
               >
-                DEPLOY GARAGE UNIT
+                {editingAccountId ? "COMMMIT GARAGE UPDATES" : "DEPLOY GARAGE UNIT"}
               </button>
             </form>
           </div>
+        </div>
 
-          {/* Catalog active grid */}
+        {/* Catalog active grid */}
           <div className="lg:col-span-7 bg-[#0A0A0A] border border-[#1A1A1A] p-6 md:p-8 rounded space-y-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-white border-b border-zinc-900 pb-2">
               ACTIVE SQUAD STOCK LIST ({accounts.length})
@@ -895,12 +981,22 @@ export default function AdminPanel() {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteAccount(a.id)}
-                      className="p-2.5 bg-black hover:bg-[#FF3333]/15 hover:border-[#FF3333]/30 border border-[#222] text-zinc-600 hover:text-[#FF3333] transition-colors rounded cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditAccount(a)}
+                        className="p-2.5 bg-black hover:bg-cyan-500/15 hover:border-cyan-500/30 border border-[#222] text-zinc-600 hover:text-cyan-400 transition-colors rounded cursor-pointer"
+                        title="Edit Account"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAccount(a.id)}
+                        className="p-2.5 bg-black hover:bg-[#FF3333]/15 hover:border-[#FF3333]/30 border border-[#222] text-zinc-600 hover:text-[#FF3333] transition-colors rounded cursor-pointer"
+                        title="Delete Account"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

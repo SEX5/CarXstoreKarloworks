@@ -369,8 +369,25 @@ async function addAccount(account: any): Promise<any> {
 }
 
 async function updateAccount(id: string, values: any): Promise<any> {
+  const sanitized: any = {};
+  if (values.name !== undefined) sanitized.name = values.name;
+  if (values.silver !== undefined) sanitized.silver = Number(values.silver);
+  if (values.gold !== undefined) sanitized.gold = Number(values.gold);
+  if (values.xp !== undefined) sanitized.xp = Number(values.xp);
+  if (values.cars_unlocked !== undefined) sanitized.cars_unlocked = Number(values.cars_unlocked);
+  if (values.maps_unlocked !== undefined) sanitized.maps_unlocked = Number(values.maps_unlocked);
+  if (values.price !== undefined) sanitized.price = Number(values.price);
+  if (values.snapshot_url !== undefined) sanitized.snapshot_url = values.snapshot_url;
+  if (values.image_url !== undefined) sanitized.image_url = values.image_url;
+  if (values.car_images !== undefined) sanitized.car_images = values.car_images;
+  if (values.is_sold !== undefined) sanitized.is_sold = !!values.is_sold;
+  
+  if (values.email !== undefined && values.password !== undefined) {
+    sanitized.credentials = encrypt(JSON.stringify({ email: values.email, password: values.password }));
+  }
+
   if (useRealSupabase && supabaseAdmin) {
-    const { data, error } = await supabaseAdmin.from("accounts").update(values).eq("id", id).select();
+    const { data, error } = await supabaseAdmin.from("accounts").update(sanitized).eq("id", id).select();
     if (error) {
       console.error("Supabase updateAccount error:", error);
       throw new Error(`Database error: ${error.message}`);
@@ -382,7 +399,7 @@ async function updateAccount(id: string, values: any): Promise<any> {
   const db = getLocalDB();
   const acc = db.accounts.find((a: any) => a.id === id);
   if (acc) {
-    Object.assign(acc, values);
+    Object.assign(acc, sanitized);
     saveLocalDB(db);
     return acc;
   }
@@ -971,12 +988,29 @@ app.post("/api/admin/upload", verifyAuthToken, async (req, res) => {
     if (useRealSupabase && supabaseAdmin) {
       console.log(`[SUPABASE UPLOAD] Uploading image: ${uniqueName} to 'package-images' bucket...`);
       try {
-        const { data, error } = await supabaseAdmin.storage
+        // Try uploading
+        let { data, error } = await supabaseAdmin.storage
           .from("package-images")
           .upload(uniqueName, buffer, {
             contentType: fileType || "image/png",
             upsert: true
           });
+
+        if (error && error.message.includes("Bucket not found")) {
+          console.log("[SUPABASE UPLOAD] Bucket 'package-images' not found. Attempting to create it...");
+          await supabaseAdmin.storage.createBucket("package-images", { public: true });
+          
+          // Retry upload once after bucket creation
+          const retry = await supabaseAdmin.storage
+            .from("package-images")
+            .upload(uniqueName, buffer, {
+              contentType: fileType || "image/png",
+              upsert: true
+            });
+          
+          data = retry.data;
+          error = retry.error;
+        }
 
         if (error) {
           throw error;

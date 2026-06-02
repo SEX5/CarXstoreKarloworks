@@ -8,6 +8,17 @@ import fs from "fs";
 import zlib from "zlib";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
+import { GoogleGenAI, Type } from "@google/genai";
+
+// Initialize Gemini client (for fallback OCR)
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY || "",
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 // Initialize express
 const app = express();
@@ -1352,34 +1363,87 @@ app.post("/api/analyze-receipt", async (req, res) => {
 Expected Output Format:
 {"extracted_info": {"reference_number": "13DIGITS", "amount": "NUMBER"}, "verification_status": "APPROVED"}`;
 
-    const payload = {
-      model: "google/gemma-4-31b-it:free",
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: ANALYSIS_PROMPT },
-          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${cleanBase64}` } }
-        ]
-      }]
-    };
+    let text = "";
+    const openRouterModels = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"];
+    let openRouterSuccess = false;
 
-    const answer = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://carx.shop",
-        "X-Title": "CarX Reseller Shop"
-      },
-      body: JSON.stringify(payload)
-    });
+    for (const modelName of openRouterModels) {
+      try {
+        console.log(`[OCR] Attempting extraction with model: ${modelName}...`);
+        const payload = {
+          model: modelName,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: ANALYSIS_PROMPT },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${cleanBase64}` } }
+            ]
+          }]
+        };
 
-    if (!answer.ok) {
-      throw new Error(`OpenRouter returned status ${answer.status}`);
+        const answer = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://carx.shop",
+            "X-Title": "CarX Reseller Shop"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!answer.ok) {
+          throw new Error(`OpenRouter (${modelName}) returned status ${answer.status}`);
+        }
+
+        const resultBody = await answer.json();
+        text = resultBody.choices?.[0]?.message?.content || "";
+        
+        if (text) {
+          openRouterSuccess = true;
+          console.log(`[OCR] Successfully extracted info using ${modelName}`);
+          break;
+        }
+      } catch (orErr: any) {
+        console.warn(`[OCR WARNING] OpenRouter model ${modelName} failed:`, orErr.message);
+      }
     }
 
-    const resultBody = await answer.json();
-    let text = resultBody.choices?.[0]?.message?.content || "";
+    if (!openRouterSuccess) {
+      console.warn("[FALLBACK] All OpenRouter models failed, attempting direct Gemini API...");
+      
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("Generic AI OCR failure and no GEMINI_API_KEY for fallback.");
+      }
+
+      const geminiResult = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [
+          { text: ANALYSIS_PROMPT },
+          { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              extracted_info: {
+                type: Type.OBJECT,
+                properties: {
+                  reference_number: { type: Type.STRING },
+                  amount: { type: Type.STRING }
+                },
+                required: ["reference_number", "amount"]
+              },
+              verification_status: { type: Type.STRING }
+            },
+            required: ["extracted_info", "verification_status"]
+          }
+        }
+      });
+      
+      text = geminiResult.text || "";
+    }
     
     // Clean markdown fences if model returned them
     text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -1659,10 +1723,22 @@ async function initServer() {
     app.use(vite.middlewares);
     console.log("Vite development middleware integrated successfully.");
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path.resolve(process.cwd(), "dist");
+    const indexPath = path.resolve(distPath, "index.html");
+    
+    console.log(`[PRODUCTION] Serving static files from: ${distPath}`);
+    if (!fs.existsSync(indexPath)) {
+      console.error(`[CRITICAL ERROR] index.html not found at: ${indexPath}`);
+      // Fallback for debugging if needed
+    }
+
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send("Application shell (index.html) is missing. If you are deploying, ensure 'npm run build' completed successfully.");
+      }
     });
   }
 

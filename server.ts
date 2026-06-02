@@ -1522,7 +1522,7 @@ Expected Output Format:
 // AUTOMATIC ACCOUNT CREATION API (CARX STREET CLONER PIPELINE)
 // -------------------------------------------------------------
 app.post("/api/create-account", async (req, res) => {
-  const { orderId } = req.body;
+  const { orderId, email, password } = req.body;
   if (!orderId) {
     return res.status(400).json({ error: "Missing checkout order tracking identifier index." });
   }
@@ -1531,10 +1531,16 @@ app.post("/api/create-account", async (req, res) => {
 
   try {
     const orderDetails = await getOrderById(orderId);
+    if (!orderDetails) {
+      throw new Error(`Order ${orderId} not found.`);
+    }
     
     // Resolve target credentials from Order parameters if present, else fallback
-    let targetEmail = orderDetails.carx_email || `acct-${orderId.toLowerCase()}@carx.shop`;
-    let targetPassword = orderDetails.carx_password || `pass-${orderId.toLowerCase()}`;
+    // We decrypt the password because it is stored encrypted in the database gcash_receipt_data
+    let targetEmail = email || orderDetails.carx_email || `acct-${orderId.toLowerCase()}@carx.shop`;
+    let rawPassword = password || orderDetails.carx_password || `pass-${orderId.toLowerCase()}`;
+    let targetPassword = decrypt(rawPassword);
+    
     const accountId = orderDetails.account_id;
 
     if (!accountId) {

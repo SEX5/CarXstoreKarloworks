@@ -142,7 +142,7 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
                 src="https://picsum.photos/seed/carxstreet/600/400"
                 alt="CarX Street High Speed Racing Garage"
                 referrerPolicy="no-referrer"
-                className="w-full h-auto object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-500"
+                className="w-full h-auto object-cover transition-all duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
               <div className="absolute bottom-4 left-4 right-4 bg-[#0A0A0A]/95 border border-[#222] p-4 rounded-sm text-xs font-mono">

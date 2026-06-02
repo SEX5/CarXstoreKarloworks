@@ -339,7 +339,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                     src={getAccountImage(acc)}
                     alt={acc.name}
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover grayscale opacity-75 group-hover/img:grayscale-0 group-hover/img:opacity-100 group-hover/img:scale-105 transition-all duration-500"
+                    className="w-full h-full object-cover group-hover/img:scale-105 transition-all duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
                   
@@ -479,7 +479,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                         src={getAccountImage(selectedAccount)}
                         alt={selectedAccount.name}
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover opacity-85"
+                        className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent"></div>
                     </div>
@@ -905,7 +905,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                         key={idx}
                         onClick={() => setActiveCarPreviewIndex(idx)}
                         className={`relative w-20 h-14 rounded overflow-hidden border transition-all focus:outline-none flex-shrink-0 cursor-pointer ${
-                          idx === activeCarPreviewIndex ? "border-[#FFD700] scale-95 shadow-[#FFD700]/10 shadow-md" : "border-zinc-900 hover:border-zinc-700 opacity-60 hover:opacity-100"
+                          idx === activeCarPreviewIndex ? "border-[#FFD700] scale-95 shadow-[#FFD700]/10 shadow-md" : "border-zinc-900 hover:border-zinc-700 opacity-80 hover:opacity-100"
                         }`}
                       >
                         <img src={img} alt={`Thumb ${idx}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />

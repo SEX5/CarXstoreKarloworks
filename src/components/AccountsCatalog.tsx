@@ -393,7 +393,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                 </div>
 
                 <div className="flex flex-col">
-                  <span className="mb-0.5 text-[9px] text-zinc-600">MAP DISCOVERIES</span>
+                  <span className="mb-0.5 text-[9px] text-zinc-600">MAP UNLOCKS</span>
                   <span className="text-white text-sm font-sans tracking-tight font-bold">
                     {acc.maps_unlocked >= 10 ? "ALL MAPS" : `${acc.maps_unlocked} REGIONS`}
                   </span>

@@ -353,12 +353,6 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                       INSPECT GARAGE STOCK
                     </span>
                   </div>
-
-                  {/* Visual Accent Badges */}
-                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-black/80 backdrop-blur-sm border border-zinc-800 px-2 py-0.5 rounded-sm font-mono text-[8.5px] uppercase font-bold text-zinc-400">
-                    <span className="w-1.5 h-1.5 bg-[#FFD700] rounded-full animate-pulse"></span>
-                    {acc.car_images ? `${acc.car_images.split(',').filter(Boolean).length} Cars Stock` : "Inspect Stock"}
-                  </div>
                 </div>
 
                 {/* Card visual banner & Header info */}

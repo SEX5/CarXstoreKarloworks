@@ -10,9 +10,21 @@ interface OrderPatchProps {
 export default function OrderPatch({ onNavigate }: OrderPatchProps) {
   const [carxEmail, setCarxEmail] = useState("");
   const [carxPassword, setCarxPassword] = useState("");
-  const [selectedPatchType, setSelectedPatchType] = useState("ban_safe_1");
+  const [selectedPatchType, setSelectedPatchType] = useState("ban_safe_t1");
+  const [isBanSafeDropdownOpen, setIsBanSafeDropdownOpen] = useState(false);
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = emailRegex.test(carxEmail);
+  const isFormValid = isEmailValid && carxPassword.trim().length > 0;
   
-  // Garage fetching states
+  const [banSafeTiers, setBanSafeTiers] = useState([
+    { id: "ban_safe_t1", label: "Ban Safe (1.6M Silver & 1,750 Gold)", price: 100.00, silver: 1600000, gold: 1750 },
+    { id: "ban_safe_t2", label: "Ban Safe (2.5M Silver & 2,900 Gold)", price: 150.00, silver: 2500000, gold: 2900 },
+    { id: "ban_safe_t3", label: "Ban Safe (4M Silver & 4,000 Gold)", price: 200.00, silver: 4000000, gold: 4000 },
+    { id: "ban_safe_t4", label: "Ban Safe (6M Silver & 6,000 Gold)", price: 250.00, silver: 6000000, gold: 6000 },
+    { id: "ban_safe_t5", label: "Ban Safe (8M Silver & 8,000 Gold)", price: 300.00, silver: 8000000, gold: 8000 },
+    { id: "ban_safe_t6", label: "Ban Safe (10M Silver & 10,000 Gold)", price: 350.00, silver: 10000000, gold: 10000 },
+  ]);
   const [garageCars, setGarageCars] = useState<any[]>([]);
   const [isLoadingGarage, setIsLoadingGarage] = useState(false);
   const [garageError, setGarageError] = useState<string | null>(null);
@@ -66,6 +78,20 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
         if (pricingResp.ok) {
           const p = await pricingResp.json();
           setServices(p);
+
+          // Synchronize banSafeTiers prices and labels from DB
+          setBanSafeTiers(prev => prev.map(tier => {
+            const dbPriceInfo = p.find((s: any) => s.patch_type === tier.id);
+            if (dbPriceInfo) {
+              return { 
+                ...tier, 
+                price: Number(dbPriceInfo.price),
+                label: dbPriceInfo.label
+              };
+            }
+            return tier;
+          }));
+
           if (p.length > 0) {
             setSelectedPatchType(p[0].patch_type);
           }
@@ -137,19 +163,25 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
     };
   }, [carxEmail, carxPassword, selectedPatchType]);
 
-  const currentService = services.find((s) => s.patch_type === selectedPatchType) || {
-    patch_type: "ban_safe_1",
-    label: "Ban-Safe Pack 1",
-    price: 300,
-    description: "Appends 10 Million Silver and 6K Gold."
+  const currentService = services.find((s) => s.patch_type === selectedPatchType) || 
+    banSafeTiers.find(t => t.id === selectedPatchType) || {
+    patch_type: "ban_safe_t1",
+    label: "Ban Safe (1.6M Silver & 1,750 Gold)",
+    price: 100,
+    description: "1.6M Silver + 1,750 Gold"
   };
 
   const handleOpenPaymentWizard = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!carxEmail || !carxPassword) {
-      setError("Please fill out all required fields: CarX login and password.");
+    // Strict validation check before allowing the wizard to open
+    if (!isFormValid) {
+      if (!carxEmail || !isEmailValid) {
+        setError("⚠️ A valid email address is required to proceed with the patch injection.");
+      } else if (!carxPassword.trim()) {
+        setError("⚠️ Your account password is required for the injection synchronization.");
+      }
       return;
     }
 
@@ -211,6 +243,11 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
 
   // Submit OCR GCash Analyzer in modal
   const submitGCashVerify = async () => {
+    if (!isFormValid) {
+      setOcrError("Please enter a valid email and password before submitting.");
+      return;
+    }
+    
     if (!receiptBase64) {
       setOcrError("Please upload or drag your GCash screenshot verification receipt.");
       return;
@@ -240,10 +277,18 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
       
       if (selectedPatchType === "custom_resources") {
         customConfig = { silver: Number(customSilver), gold: Number(customGold), xp: 0 };
-      } else if (selectedPatchType === "ban_safe_1") {
-        customConfig = { silver: 10000000, gold: 6000, xp: 0 };
-      } else if (selectedPatchType === "ban_safe_2") {
-        customConfig = { silver: 6000000, gold: 1000, xp: 0 };
+      } else if (selectedPatchType === "ban_safe_t1") {
+        customConfig = { silver: 1600000, gold: 1750, xp: 0 };
+      } else if (selectedPatchType === "ban_safe_t2") {
+        customConfig = { silver: 2500000, gold: 2900, xp: 0 };
+      } else if (selectedPatchType === "ban_safe_t3") {
+        customConfig = { silver: 4000000, gold: 4000, xp: 0 };
+      } else if (selectedPatchType === "ban_safe_t4") {
+        customConfig = { silver: 6000000, gold: 6000, xp: 0 };
+      } else if (selectedPatchType === "ban_safe_t5") {
+        customConfig = { silver: 8000000, gold: 8000, xp: 0 };
+      } else if (selectedPatchType === "ban_safe_t6") {
+        customConfig = { silver: 10000000, gold: 10000, xp: 0 };
       } else if (selectedPatchType === "max_nitro" || selectedPatchType === "inject_car") {
         customConfig = { car_id: carId };
       }
@@ -325,11 +370,16 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                   id="carx-email"
                   type="text"
                   required
-                  placeholder="player_username"
+                  placeholder="email address"
                   value={carxEmail}
                   onChange={(e) => setCarxEmail(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-900 p-2 text-sm outline-none focus:border-[#FFD700] text-white transition-all font-mono rounded-sm"
                 />
+                {carxEmail && !isEmailValid && (
+                  <p className="text-[10px] text-[#FF3333] font-mono mt-1 font-bold animate-pulse">
+                    ⚠️ Please enter a valid email address (e.g., name@email.com) before verifying.
+                  </p>
+                )}
               </div>
 
               {/* Game Account Secret Code Password */}
@@ -358,17 +408,51 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                 </label>
 
                 <div className="grid md:grid-cols-2 gap-4">
-                  {services.map((serv) => (
+                  {/* GROUPED BAN-SAFE BUTTON */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBanSafeDropdownOpen(!isBanSafeDropdownOpen);
+                      if (!selectedPatchType.startsWith("ban_safe_")) {
+                        setSelectedPatchType("ban_safe_t1");
+                      }
+                      setError(null);
+                    }}
+                    className={`text-left p-4 rounded border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden ${
+                      selectedPatchType.startsWith("ban_safe_")
+                        ? "bg-[#FFD700]/5 border-[#FFD700] text-white shadow-[0_0_15px_rgba(255,215,0,0.05)]"
+                        : "bg-zinc-950 border-zinc-900 hover:border-zinc-800 text-zinc-400"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[8px] font-mono uppercase bg-black px-1.5 py-0.5 rounded border border-[#1A1A1A] text-[#FFD700] font-bold">
+                          PROTECTED LINE
+                        </span>
+                        <ShieldCheck className={`w-3.5 h-3.5 ${selectedPatchType.startsWith("ban_safe_") ? "text-[#FFD700]" : "text-zinc-600"}`} />
+                      </div>
+                      <h4 className="font-bold text-xs text-white tracking-wide leading-none uppercase">
+                        🛡️ BAN-SAFE RESOURCES
+                      </h4>
+                      <p className="text-[10px] text-zinc-500 font-sans mt-2 leading-relaxed">
+                        Grouped high-stability resource injections with zero ban risk metrics.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* OTHER SERVICES (Excluding individual Ban-Safe buttons) */}
+                  {services.filter(s => !s.patch_type.startsWith("ban_safe_")).map((serv) => (
                     <button
                       type="button"
                       key={serv.patch_type}
                       onClick={() => {
                         setSelectedPatchType(serv.patch_type);
+                        setIsBanSafeDropdownOpen(false);
                         setError(null);
                       }}
                       className={`text-left p-4 rounded border transition-all cursor-pointer flex flex-col justify-between ${
                         selectedPatchType === serv.patch_type
-                          ? "bg-[#FFD700]/5 border-[#FFD700] text-white animate-pulse"
+                          ? "bg-[#FFD700]/5 border-[#FFD700] text-white"
                           : "bg-zinc-950 border-zinc-900 hover:border-zinc-800 text-zinc-400"
                       }`}
                     >
@@ -389,6 +473,42 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                     </button>
                   ))}
                 </div>
+
+                {/* NESTED BAN-SAFE SELECTION SUB-MENU */}
+                <AnimatePresence>
+                  {(selectedPatchType.startsWith("ban_safe_") || isBanSafeDropdownOpen) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="bg-black border border-[#FFD700]/20 rounded p-4 mt-2 grid gap-2"
+                    >
+                      <span className="text-[9px] font-mono font-black text-[#FFD700] uppercase tracking-widest block mb-1">
+                        Select Injection Tier:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {banSafeTiers.map((tier) => (
+                          <button
+                            key={tier.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPatchType(tier.id);
+                              setError(null);
+                            }}
+                            className={`text-left px-3 py-2.5 rounded border text-[10px] uppercase font-bold tracking-tight transition-all flex justify-between items-center ${
+                              selectedPatchType === tier.id
+                                ? "bg-[#FFD700] border-[#FFD700] text-black"
+                                : "bg-zinc-950 border-zinc-900 text-zinc-400 hover:border-zinc-700"
+                            }`}
+                          >
+                            <span>{tier.label.split(' — ')[0]}</span>
+                            <span className="font-mono">₱{tier.price.toFixed(2)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Dynamic Custom Configuration sliders / parameters */}
@@ -553,7 +673,12 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
               {/* Submit triggers modal popup pay steps */}
               <button
                 type="submit"
-                className="w-full py-3 bg-[#FF3333] hover:bg-white text-white hover:text-black font-black uppercase tracking-wider font-mono text-xs transition-colors cursor-pointer"
+                disabled={!isFormValid}
+                className={`w-full py-3 font-black uppercase tracking-wider font-mono text-xs transition-colors ${
+                  isFormValid 
+                    ? "bg-[#FF3333] hover:bg-white text-white hover:text-black cursor-pointer" 
+                    : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                }`}
               >
                 PROCEED TO GCASH VERIFICATION
               </button>
@@ -773,8 +898,12 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                     
                     <button
                       onClick={submitGCashVerify}
-                      disabled={!receiptBase64 || verifyingReceipt}
-                      className="w-1/2 py-2.5 bg-[#FFD700] disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-black font-black uppercase tracking-wider font-mono text-xs flex items-center justify-center gap-1 cursor-pointer"
+                      disabled={!receiptBase64 || verifyingReceipt || !isFormValid}
+                      className={`w-1/2 py-2.5 font-black uppercase tracking-wider font-mono text-xs flex items-center justify-center gap-1 transition-colors ${
+                        (!receiptBase64 || verifyingReceipt || !isFormValid)
+                          ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                          : "bg-[#FFD700] hover:bg-white text-black cursor-pointer"
+                      }`}
                     >
                       {verifyingReceipt ? (
                         <>

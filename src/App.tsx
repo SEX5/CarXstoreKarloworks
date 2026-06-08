@@ -15,6 +15,7 @@ import CancelPage from "./components/CancelPage";
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
   const [orderIdParam, setOrderIdParam] = useState<string | null>(null);
+  const [viewParam, setViewParam] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSupportPrompt, setShowSupportPrompt] = useState(false);
   const [configStatus, setConfigStatus] = useState({
@@ -63,8 +64,8 @@ export default function App() {
   const navigateTo = (view: string, arg?: string) => {
     setCurrentView(view);
     setMobileMenuOpen(false);
-    if (arg) {
-      setOrderIdParam(arg);
+    if (view === "order_status") {
+      setOrderIdParam(arg || null);
     }
     const targetPath = view === "home" ? "/" : `/${view}${arg ? `/${arg}` : ""}`;
     window.history.pushState({}, "", targetPath);

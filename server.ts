@@ -142,6 +142,22 @@ function getLocalDB() {
           credentials: encrypt(JSON.stringify({ email: "tokyo_carx_02@carx.shop", password: "GoldBeastXStreet1" })),
           is_sold: false,
           created_at: new Date(Date.now() - 3600000 * 24 * 1).toISOString()
+        },
+        {
+          id: "3e589bdc-15a5-48b9-8798-29ea30e7033a",
+          name: "Ban-Safe Elite Pack",
+          silver: 50000000,
+          gold: 15000,
+          xp: 60,
+          cars_unlocked: 25,
+          maps_unlocked: 10,
+          price: 999.00,
+          image_url: "hypercar_pack_bg",
+          car_images: "https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&q=80&w=800",
+          snapshot_url: "https://street-prod.carx-online.com/snapshots/bansafe_elite.json",
+          credentials: encrypt(JSON.stringify({ email: "safe_racer@carx.shop", password: "SafePass123!" })),
+          is_sold: false,
+          created_at: new Date().toISOString()
         }
       ],
       orders: [
@@ -162,13 +178,17 @@ function getLocalDB() {
         }
       ],
       patch_pricing: [
-        { id: 1, patch_type: "ban_safe_1", label: "Ban-Safe Pack 1", price: 300.00, description: "10M Silver + 6K Gold" },
-        { id: 2, patch_type: "ban_safe_2", label: "Ban-Safe Pack 2", price: 100.00, description: "6M Silver + 1K Gold" },
-        { id: 3, patch_type: "map_unlock", label: "Map Unlock Only", price: 100.00, description: "Unlocks all maps" },
-        { id: 4, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
-        { id: 5, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
-        { id: 6, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
-        { id: 7, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
+        { id: 1, patch_type: "ban_safe_t1", label: "Ban Safe (1.6M Silver & 1,750 Gold)", price: 100.00, description: "1.6M Silver + 1,750 Gold" },
+        { id: 2, patch_type: "ban_safe_t2", label: "Ban Safe (2.5M Silver & 2,900 Gold)", price: 150.00, description: "2.5M Silver + 2,900 Gold" },
+        { id: 3, patch_type: "ban_safe_t3", label: "Ban Safe (4M Silver & 4,000 Gold)", price: 200.00, description: "4M Silver + 4,000 Gold" },
+        { id: 4, patch_type: "ban_safe_t4", label: "Ban Safe (6M Silver & 6,000 Gold)", price: 250.00, description: "6M Silver + 6,000 Gold" },
+        { id: 5, patch_type: "ban_safe_t5", label: "Ban Safe (8M Silver & 8,000 Gold)", price: 300.00, description: "8M Silver + 8,000 Gold" },
+        { id: 6, patch_type: "ban_safe_t6", label: "Ban Safe (10M Silver & 10,000 Gold)", price: 350.00, description: "10M Silver + 10,000 Gold" },
+        { id: 7, patch_type: "map_unlock", label: "Map Unlock Only", price: 100.00, description: "Unlocks all maps" },
+        { id: 8, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
+        { id: 9, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
+        { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
+        { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
       ],
       settings: [
         { key: "gcash_number", value: "09123456789" },
@@ -265,13 +285,17 @@ async function saveSetting(key: string, value: string) {
 
 async function getPatchPricing(): Promise<any[]> {
   const defaultPricing = [
-    { id: 1, patch_type: "ban_safe_1", label: "Ban-Safe Pack 1", price: 300.00, description: "10M Silver + 6K Gold" },
-    { id: 2, patch_type: "ban_safe_2", label: "Ban-Safe Pack 2", price: 100.00, description: "6M Silver + 1K Gold" },
-    { id: 3, patch_type: "map_unlock", label: "Map Unlock Only", price: 100.00, description: "Unlocks all maps" },
-    { id: 4, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
-    { id: 5, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
-    { id: 6, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
-    { id: 7, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
+    { id: 1, patch_type: "ban_safe_t1", label: "Ban Safe (1.6M Silver & 1,750 Gold)", price: 100.00, description: "1.6M Silver + 1,750 Gold" },
+    { id: 2, patch_type: "ban_safe_t2", label: "Ban Safe (2.5M Silver & 2,900 Gold)", price: 150.00, description: "2.5M Silver + 2,900 Gold" },
+    { id: 3, patch_type: "ban_safe_t3", label: "Ban Safe (4M Silver & 4,000 Gold)", price: 200.00, description: "4M Silver + 4,000 Gold" },
+    { id: 4, patch_type: "ban_safe_t4", label: "Ban Safe (6M Silver & 6,000 Gold)", price: 250.00, description: "6M Silver + 6,000 Gold" },
+    { id: 5, patch_type: "ban_safe_t5", label: "Ban Safe (8M Silver & 8,000 Gold)", price: 300.00, description: "8M Silver + 8,000 Gold" },
+    { id: 6, patch_type: "ban_safe_t6", label: "Ban Safe (10M Silver & 10,000 Gold)", price: 350.00, description: "10M Silver + 10,000 Gold" },
+    { id: 7, patch_type: "map_unlock", label: "Map Unlock Only", price: 100.00, description: "Unlocks all maps" },
+    { id: 8, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
+    { id: 9, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
+    { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
+    { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
   ];
 
   let dbPricing: any[] = [];
@@ -1068,6 +1092,16 @@ app.get("/api/patch-pricing", async (req, res) => {
   }
 });
 
+// Get all orders (for stats)
+app.get("/api/orders", async (req, res) => {
+  try {
+    const orders = await getOrders();
+    res.json(orders);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin save patch pricing
 app.post("/api/admin/patch-pricing", verifyAuthToken, async (req, res) => {
   const { patch_type, price, label, description } = req.body;
@@ -1106,26 +1140,38 @@ app.post("/api/orders", async (req, res) => {
                 console.log(`[CARX INJECTION] Maps injected successfully.`);
             }
 
-            if (receiptData.patch_type === "ban_safe_1" || receiptData.patch_type === "ban_safe_2" || receiptData.patch_type === "custom_resources" || details.silver || details.gold) {
+            if (String(receiptData.patch_type).startsWith("ban_safe_") || receiptData.patch_type === "custom_resources" || details.silver || details.gold) {
                  let silver = Number(details.silver);
                  let gold = Number(details.gold);
                  let xp = Number(details.xp) || 0;
                  
                  // Explicit overrides for pre-defined packs if values are missing or zero
-                 if (receiptData.patch_type === "ban_safe_1") {
-                    if (!silver) silver = 10000000;
-                    if (!gold) gold = 6000;
-                 } else if (receiptData.patch_type === "ban_safe_2") {
+                 if (receiptData.patch_type === "ban_safe_t1") {
+                    if (!silver) silver = 1600000;
+                    if (!gold) gold = 1750;
+                 } else if (receiptData.patch_type === "ban_safe_t2") {
+                    if (!silver) silver = 2500000;
+                    if (!gold) gold = 2900;
+                 } else if (receiptData.patch_type === "ban_safe_t3") {
+                    if (!silver) silver = 4000000;
+                    if (!gold) gold = 4000;
+                 } else if (receiptData.patch_type === "ban_safe_t4") {
                     if (!silver) silver = 6000000;
-                    if (!gold) gold = 1000;
+                    if (!gold) gold = 6000;
+                 } else if (receiptData.patch_type === "ban_safe_t5") {
+                    if (!silver) silver = 8000000;
+                    if (!gold) gold = 8000;
+                 } else if (receiptData.patch_type === "ban_safe_t6") {
+                    if (!silver) silver = 10000000;
+                    if (!gold) gold = 10000;
                  }
 
                  // Final fallback to 0 if still NaN
                  silver = silver || 0;
                  gold = gold || 0;
                  
-                 // Force XP to 0 for custom_resources or ban safe packs as requested by recent UI changes
-                 if (receiptData.patch_type === "custom_resources" || receiptData.patch_type === "ban_safe_1" || receiptData.patch_type === "ban_safe_2") {
+                 // Force XP to 0 for custom_resources or ban safe packs
+                 if (receiptData.patch_type === "custom_resources" || String(receiptData.patch_type).startsWith("ban_safe_")) {
                      xp = 0;
                  }
 
@@ -1650,12 +1696,17 @@ async function seedSupabaseIfNeeded() {
     } else if (!pricingData || pricingData.length === 0) {
       console.log("[SUPABASE SEED] Seeding default injection pricing plans...");
       await supabaseAdmin.from("patch_pricing").insert([
-        { id: 1, patch_type: "ban_safe_1", label: "Ban-Safe Pack 1", price: 250.00, description: "10M Silver + 6K Gold" },
-        { id: 2, patch_type: "ban_safe_2", label: "Ban-Safe Pack 2", price: 150.00, description: "6M Silver + 1K Gold" },
-        { id: 3, patch_type: "map_unlock", label: "Map Unlock Only", price: 100.00, description: "Unlocks all maps" },
-        { id: 4, patch_type: "max_nitro", label: "Max Nitro", price: 150.00, description: "Max nitro for one car" },
-        { id: 5, patch_type: "inject_car", label: "Inject Custom Car", price: 150.00, description: "Inject a specific car by Car ID" },
-        { id: 6, patch_type: "custom_resources", label: "Custom Resources", price: 150.00, description: "Custom silver/gold amount" }
+        { id: 1, patch_type: "ban_safe_t1", label: "Ban Safe (1.6M Silver & 1,750 Gold)", price: 100.00, description: "1.6M Silver + 1,750 Gold" },
+        { id: 2, patch_type: "ban_safe_t2", label: "Ban Safe (2.5M Silver & 2,900 Gold)", price: 150.00, description: "2.5M Silver + 2,900 Gold" },
+        { id: 3, patch_type: "ban_safe_t3", label: "Ban Safe (4M Silver & 4,000 Gold)", price: 200.00, description: "4M Silver + 4,000 Gold" },
+        { id: 4, patch_type: "ban_safe_t4", label: "Ban Safe (6M Silver & 6,000 Gold)", price: 250.00, description: "6M Silver + 6,000 Gold" },
+        { id: 5, patch_type: "ban_safe_t5", label: "Ban Safe (8M Silver & 8,000 Gold)", price: 300.00, description: "8M Silver + 8,000 Gold" },
+        { id: 6, patch_type: "ban_safe_t6", label: "Ban Safe (10M Silver & 10,000 Gold)", price: 350.00, description: "10M Silver + 10,000 Gold" },
+        { id: 7, patch_type: "map_unlock", label: "Map Unlock Only", price: 100.00, description: "Unlocks all maps" },
+        { id: 8, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
+        { id: 9, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
+        { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
+        { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
       ]);
     }
   } catch (err: any) {

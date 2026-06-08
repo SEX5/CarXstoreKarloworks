@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Check, Coins, Trophy, Car, Map, ShieldCheck, Mail, Loader2, Sparkles, QrCode, UploadCloud, Copy, ArrowRight, ArrowLeft, KeyRound, ExternalLink, RefreshCw } from "lucide-react";
+import { Check, Coins, Trophy, Car, Map, ShieldCheck, Mail, Loader2, Sparkles, QrCode, UploadCloud, Copy, ArrowRight, ArrowLeft, KeyRound, ExternalLink, RefreshCw, Zap } from "lucide-react";
 import { CarXAccount } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 import { formatResourceQuantity, formatResourceQuantityDetailed } from "../utils";
@@ -80,10 +80,13 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
   const [deliveredPassword, setDeliveredPassword] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Stock Showcase / Inventory Showcase States
   const [inspectingAccount, setInspectingAccount] = useState<CarXAccount | null>(null);
   const [activeCarPreviewIndex, setActiveCarPreviewIndex] = useState<number>(0);
   const [fullscreenPreviewUrl, setFullscreenPreviewUrl] = useState<string | null>(null);
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = emailRegex.test(carxEmail);
+  const isFormValid = isEmailValid && carxPassword.trim().length > 0;
 
   // Load configuration
   useEffect(() => {
@@ -179,12 +182,12 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
   // Step 1: Submit Credentials
   const submitCredentialsStep = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!carxEmail) {
-      setOcrError("Please input your CarX login email/username.");
-      return;
-    }
-    if (!carxPassword) {
-      setOcrError("Please input your CarX account password.");
+    if (!isFormValid) {
+      if (!carxEmail || !isEmailValid) {
+        setOcrError("⚠️ A valid email address is required to proceed with the package injection.");
+      } else if (!carxPassword.trim()) {
+        setOcrError("⚠️ Your account password is required for the injection synchronization.");
+      }
       return;
     }
     setOcrError(null);
@@ -498,11 +501,16 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                       id="modal-carx-email"
                       type="text"
                       required
-                      placeholder="player_username"
+                      placeholder="name@email.com"
                       value={carxEmail}
                       onChange={(e) => setCarxEmail(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-805 border-zinc-800 p-2.5 rounded text-sm text-white focus:outline-none focus:border-[#FFD700] font-mono transition-colors"
+                      className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded text-sm text-white focus:outline-none focus:border-[#FFD700] font-mono transition-colors"
                     />
+                    {carxEmail && !isEmailValid && (
+                      <p className="text-[10px] text-[#FF3333] font-mono mt-1 font-bold animate-pulse">
+                        ⚠️ Please enter a valid email address (e.g., name@email.com) before verifying.
+                      </p>
+                    )}
                     <span className="text-[10px] text-[#FFD700] block leading-tight text-left font-mono">
                       * The email/username must NOT be connected or registered in CarX Street.
                     </span>
@@ -544,10 +552,15 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                     
                     <button
                       type="submit"
-                      className="w-1/2 py-2.5 bg-[#FFD700] hover:bg-white text-black font-black uppercase tracking-wider font-mono text-xs flex items-center justify-center gap-1 cursor-pointer"
+                      disabled={!isFormValid}
+                      className={`w-1/2 py-2.5 font-black uppercase tracking-wider font-mono text-xs flex items-center justify-center gap-1 transition-colors ${
+                        isFormValid 
+                          ? "bg-[#FFD700] hover:bg-white text-black cursor-pointer" 
+                          : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                      }`}
                     >
                       <span>NEXT: PAY VIA GCASH</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-black" />
+                      <ArrowRight className={`w-3.5 h-3.5 ${isFormValid ? "text-black" : "text-zinc-500"}`} />
                     </button>
                   </div>
                 </form>

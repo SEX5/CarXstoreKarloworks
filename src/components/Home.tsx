@@ -1,9 +1,9 @@
-import React from "react";
-import { Shield, Zap, Compass, Flame, ArrowRight, Star, HeartHandshake, HelpCircle, HardDrive, ToggleLeft } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Shield, Zap, Compass, Flame, ArrowRight, Star, HeartHandshake, HelpCircle, HardDrive, ToggleLeft, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 interface HomeProps {
-  onNavigate: (view: string) => void;
+  onNavigate: (view: string, arg?: string) => void;
   settings?: {
     is_online?: string;
     maintenance_mode?: string;
@@ -14,6 +14,37 @@ interface HomeProps {
 export default function Home({ onNavigate, settings = {} }: HomeProps) {
   const isOnline = settings.is_online !== "false";
   const inMaintenance = settings.maintenance_mode === "true";
+
+  const [pricingRange, setPricingRange] = useState("₱100 ~ ₱350");
+  const [orderCount, setOrderCount] = useState("32,500+");
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const pResp = await fetch("/api/patch-pricing");
+        if (pResp.ok) {
+          const pricing = await pResp.json();
+          if (pricing && pricing.length > 0) {
+            const prices = pricing.map((p: any) => Number(p.price));
+            const min = Math.min(...prices);
+            const max = Math.max(...prices);
+            setPricingRange(`₱${min} ~ ₱${max}`);
+          }
+        }
+
+        const oResp = await fetch("/api/orders");
+        if (oResp.ok) {
+          const orders = await oResp.json();
+          if (orders && orders.length > 5) {
+            setOrderCount(`${orders.length.toLocaleString()}+`);
+          }
+        }
+      } catch (err) {
+        console.error("Home stats fetch failed:", err);
+      }
+    }
+    fetchStats();
+  }, []);
 
   // If Maintenance mode is active, block viewing with immersive, clean warning card screen
   if (inMaintenance) {
@@ -219,7 +250,7 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
       {/* Quick Live Stats / Trust Element */}
       <div className="rounded-lg bg-[#080808] border border-[#1A1A1A] p-8 flex flex-col md:flex-row justify-around items-center gap-8 text-center mb-10">
         <div>
-          <div className="text-3xl font-black italic uppercase text-white tracking-tight">32,500+</div>
+          <div className="text-3xl font-black italic uppercase text-white tracking-tight">{orderCount}</div>
           <div className="text-zinc-500 text-[10px] font-mono uppercase mt-1.5 tracking-widest font-bold">Fulfillments Delivered</div>
         </div>
         <div className="hidden md:block w-px h-10 bg-[#1A1A1A]" />
@@ -229,7 +260,7 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
         </div>
         <div className="hidden md:block w-px h-10 bg-[#1A1A1A]" />
         <div>
-          <div className="text-3xl font-black italic uppercase text-white tracking-tight">₱100 ~ ₱300</div>
+          <div className="text-3xl font-black italic uppercase text-white tracking-tight">{pricingRange}</div>
           <div className="text-[#FFD700] text-[10px] font-mono uppercase mt-1.5 tracking-widest font-bold">Cheap Resource Patch Rates</div>
         </div>
       </div>

@@ -467,18 +467,6 @@ export default function AdminPanel() {
                 onChange={(e) => setLoginPassword(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-900 p-2.5 rounded text-sm text-white font-mono focus:border-[#FFD700]"
               />
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail("admin@carxstreet.store");
-                    setLoginPassword("CarxStreetAdminSecurePass123");
-                  }}
-                  className="text-[9px] font-mono text-[#FFD700] uppercase font-bold"
-                >
-                  💡 Autofill credentials keys
-                </button>
-              </div>
             </div>
 
             {loginError && (

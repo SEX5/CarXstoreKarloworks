@@ -134,31 +134,39 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
               Fast delivery (~30 seconds) on modded accounts and automated resource calibrations. Full GCash scanner integration ensures instant on-screen logins, with zero admin wait times.
             </motion.p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto pt-2"
-            >
-              {/* Slanted skew button */}
-              <button
-                onClick={() => onNavigate("accounts")}
-                className="group relative cursor-pointer px-6 py-3.5 bg-[#FFD700] hover:bg-white text-black font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
-                id="btn-nav-catalog"
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex flex-col sm:flex-row flex-wrap gap-4 w-full sm:w-auto pt-2"
               >
-                <span>Browse Resource Packages</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-black" />
-              </button>
+                {/* Slanted skew button */}
+                <button
+                  onClick={() => onNavigate("accounts")}
+                  className="group relative cursor-pointer px-6 py-3.5 bg-[#FFD700] hover:bg-white text-black font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
+                  id="btn-nav-catalog"
+                >
+                  <span>Browse Resource Packages</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-black" />
+                </button>
 
-              <button
-                onClick={() => onNavigate("order")}
-                className="group relative cursor-pointer px-6 py-3.5 bg-transparent border border-[#FF3333] hover:bg-[#FF3333] hover:text-white text-[#FF3333] font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
-                id="btn-nav-order"
-              >
-                <span>Order a Patch</span>
-                <Flame className="w-4 h-4 hover:scale-110 transition-transform" />
-              </button>
-            </motion.div>
+                <button
+                  onClick={() => onNavigate("order")}
+                  className="group relative cursor-pointer px-6 py-3.5 bg-transparent border border-[#FF3333] hover:bg-[#FF3333] hover:text-white text-[#FF3333] font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
+                  id="btn-nav-order"
+                >
+                  <span>Order a Patch</span>
+                  <Flame className="w-4 h-4 hover:scale-110 transition-transform" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate("recovery")}
+                  className="group relative cursor-pointer px-6 py-3.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-500 text-zinc-400 hover:text-white font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
+                  id="btn-nav-recovery"
+                >
+                  <span>🛠️ Replacement & Refills</span>
+                </button>
+              </motion.div>
           </div>
 
           <div className="md:col-span-5 relative hidden md:block">

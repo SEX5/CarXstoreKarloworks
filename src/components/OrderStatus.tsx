@@ -154,6 +154,41 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
               <span className="text-zinc-305 text-zinc-300 font-mono">{order.gcash_ref_number}</span>
             </div>
           )}
+
+          {/* 🎫 CLAIMS TELEMETRY BREAKDOWN */}
+          {order.order_type === "account" && (
+            <div className="pt-2 space-y-2">
+              <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-bold">🎫 Claims Status</p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {order.max_replacements > 0 && (
+                  <div className="p-3 bg-zinc-950 border border-zinc-900 rounded space-y-1">
+                    <p className="text-[8.5px] text-zinc-500 font-mono uppercase font-bold">Replacements</p>
+                    <p className="text-cyan-400 font-bold font-mono text-sm leading-none">
+                      {order.replacements_count || 0}/{order.max_replacements}
+                    </p>
+                    <p className="text-[7.5px] text-zinc-600 font-mono uppercase tracking-tighter">Claims Used</p>
+                  </div>
+                )}
+
+                {order.max_refills > 0 && (
+                  <div className="p-3 bg-zinc-950 border border-zinc-900 rounded space-y-1">
+                    <p className="text-[8.5px] text-zinc-500 font-mono uppercase font-bold">Refills</p>
+                    <p className="text-amber-400 font-bold font-mono text-sm leading-none">
+                      {order.refills_count || 0}/{order.max_refills}
+                    </p>
+                    <p className="text-[7.5px] text-zinc-600 font-mono uppercase tracking-tighter">Claims Used</p>
+                  </div>
+                )}
+              </div>
+              
+              {(order.max_replacements > 0 || order.max_refills > 0) && (
+                <p className="text-[8px] text-zinc-600 italic leading-tight">
+                  * You can request replacements or refills in the Replacement Center using your Tracking ID.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Credentials Delivery Panel for Order Type Account */}

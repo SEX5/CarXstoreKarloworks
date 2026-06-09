@@ -9,6 +9,7 @@ import AccountsCatalog from "./components/AccountsCatalog";
 import OrderPatch from "./OrderPatch";
 import OrderStatus from "./components/OrderStatus";
 import AdminPanel from "./components/AdminPanel";
+import RecoveryCenter from "./components/RecoveryCenter";
 import SuccessPage from "./components/SuccessPage";
 import CancelPage from "./components/CancelPage";
 
@@ -47,6 +48,8 @@ export default function App() {
         setOrderIdParam(parts[1]);
       } else if (path === "/admin") {
         setCurrentView("admin");
+      } else if (path === "/recovery") {
+        setCurrentView("recovery");
       } else if (path === "/success") {
         setCurrentView("success");
       } else if (path === "/cancel") {
@@ -124,6 +127,15 @@ export default function App() {
               Patches
             </button>
 
+            <button
+              onClick={() => navigateTo("recovery")}
+              className={`cursor-pointer transition-colors hover:text-white pb-1 border-b-2 ${
+                currentView === "recovery" ? "text-[#FFD700] border-[#FFD700]" : "text-gray-400 border-transparent"
+              }`}
+            >
+              Replacement
+            </button>
+
             <span className="w-px h-4 bg-[#1A1A1A]" />
 
             <button
@@ -177,6 +189,14 @@ export default function App() {
               Order Patch
             </button>
             <button
+              onClick={() => navigateTo("recovery")}
+              className={`text-left py-2 font-mono text-xs font-bold uppercase tracking-wide ${
+                currentView === "recovery" ? "text-[#FFD700]" : "text-gray-400"
+              }`}
+            >
+              Account Replacement
+            </button>
+            <button
               onClick={() => navigateTo("admin")}
               className="text-left py-2 px-3 bg-[#080808] border border-[#1A1A1A] rounded font-mono text-xs font-bold uppercase tracking-wide text-[#FFD700]"
             >
@@ -226,6 +246,7 @@ export default function App() {
         {currentView === "home" && <Home onNavigate={navigateTo} />}
         {currentView === "accounts" && <AccountsCatalog onNavigate={navigateTo} />}
         {currentView === "order" && <OrderPatch onNavigate={navigateTo} />}
+        {currentView === "recovery" && <RecoveryCenter onNavigate={navigateTo} />}
         {currentView === "order_status" && <OrderStatus orderId={orderIdParam || ""} onNavigate={navigateTo} />}
         {currentView === "admin" && <AdminPanel />}
         {currentView === "success" && <SuccessPage onNavigate={navigateTo} />}

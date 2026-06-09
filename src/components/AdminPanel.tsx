@@ -60,6 +60,10 @@ export default function AdminPanel() {
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [isLocalUpload, setIsLocalUpload] = useState(false);
 
+  // Replacement & Refill Limits
+  const [newAccMaxReplacements, setNewAccMaxReplacements] = useState(1);
+  const [newAccMaxRefills, setNewAccMaxRefills] = useState(1);
+
   // Dynamic Patch Pricing edit states
   const [editPrices, setEditPrices] = useState<{ [key: string]: number }>({});
   const [savingPriceMap, setSavingPriceMap] = useState<{ [key: string]: boolean }>({});
@@ -199,7 +203,9 @@ export default function AdminPanel() {
         image_url: newAccImageUrl,
         car_images: newAccCarImages,
         email: newAccEmail,
-        password: newAccPassword
+        password: newAccPassword,
+        max_replacements: newAccMaxReplacements,
+        max_refills: newAccMaxRefills
       };
 
       const endpoint = editingAccountId ? `/api/admin/accounts/${editingAccountId}/update` : "/api/admin/accounts";
@@ -227,6 +233,8 @@ export default function AdminPanel() {
         setNewAccSnapUrl("");
         setNewAccImageUrl("");
         setNewAccCarImages("");
+        setNewAccMaxReplacements(1);
+        setNewAccMaxRefills(1);
       }
       setEditingAccountId(null);
       loadDashboardData();
@@ -248,6 +256,8 @@ export default function AdminPanel() {
     setNewAccSnapUrl(acc.snapshot_url || "");
     setNewAccImageUrl(acc.image_url || "");
     setNewAccCarImages(acc.car_images || "");
+    setNewAccMaxReplacements(acc.max_replacements || 1);
+    setNewAccMaxRefills(acc.max_refills || 1);
     
     // Credentials are JSON stringified and encrypted in DB
     // We try to decode them if they look like the expected format
@@ -616,6 +626,52 @@ export default function AdminPanel() {
                               </span>
                             </p>
                           )}
+
+                          {/* 🎫 DYNAMIC CLAIMS & REFILL TELEMETRY DISPLAY */}
+                          {o.order_type === "account" && (
+                            <div className="pt-2 border-t border-zinc-900 mt-2 text-[10px] space-y-1">
+                              <p className="text-[8.5px] font-mono text-[#FFD700] uppercase font-bold tracking-widest font-bold">🎫 Claims Telemetry</p>
+                              {(() => {
+                                // Find the associated catalog package in accounts memory to check if it's Modded or Grind
+                                const pkg = accounts.find((a: any) => a.id === o.account_id);
+                                const lowerPkgName = (pkg?.name || "").toLowerCase();
+                                const isModded = lowerPkgName.includes("modded");
+                                
+                                if (isModded) {
+                                  // Dynamically parse limit (1x, 2x, 3x) from name, fallback to 1
+                                  const limit = (lowerPkgName.match(/(\d+)x/) || [])[1] || "1";
+                                  return (
+                                    <>
+                                      <p className="text-cyan-400 font-bold font-mono">🔄 Replacement: {o.replacements_count || 0}/{limit} Claims</p>
+                                      {o.last_replacement_at && (
+                                        <p className="text-[7.5px] text-zinc-500 font-mono leading-tight">
+                                          Last: {new Date(o.last_replacement_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                        </p>
+                                      )}
+                                    </>
+                                  );
+                                } else {
+                                  // Dynamically parse limit (1x, 2x, 3x) from name, fallback to 1
+                                  const limit = (lowerPkgName.match(/(\d+)x/) || [])[1] || "1";
+                                  return (
+                                    <>
+                                      <p className="text-amber-400 font-bold font-mono">🔋 Refills: {o.refills_count || 0}/{limit} Claims</p>
+                                      {o.last_refill_at && (
+                                        <p className="text-[7.5px] text-zinc-500 font-mono leading-tight">
+                                          Last: {new Date(o.last_refill_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                        </p>
+                                      )}
+                                    </>
+                                  );
+                                }
+                              })()}
+                            </div>
+                          )}
+                          {o.order_type !== "account" && (
+                             <div className="pt-2 border-t border-zinc-900 mt-2">
+                               <p className="text-[9px] text-zinc-700 italic">N/A - Resource Patcher</p>
+                             </div>
+                          )}
                         </div>
                       </td>
                       <td className="p-4 font-mono whitespace-nowrap">
@@ -827,6 +883,35 @@ export default function AdminPanel() {
                   onChange={(e) => setNewAccSnapUrl(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-900 p-2 text-white rounded font-mono text-[11px]"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] text-zinc-500 font-mono uppercase font-bold tracking-wider">Replacements Limit</label>
+                  <select
+                    value={newAccMaxReplacements}
+                    onChange={(e) => setNewAccMaxReplacements(Number(e.target.value))}
+                    className="w-full bg-zinc-950 border border-zinc-900 p-2 text-white rounded font-mono text-xs focus:border-[#FFD700]"
+                  >
+                    <option value={0}>No Free Replacements (0x)</option>
+                    <option value={1}>1x Free Replacement</option>
+                    <option value={2}>2x Free Replacements</option>
+                    <option value={3}>3x Free Replacements</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] text-zinc-500 font-mono uppercase font-bold tracking-wider">Refills / Top-ups Limit</label>
+                  <select
+                    value={newAccMaxRefills}
+                    onChange={(e) => setNewAccMaxRefills(Number(e.target.value))}
+                    className="w-full bg-zinc-950 border border-zinc-900 p-2 text-white rounded font-mono text-xs focus:border-[#FFD700]"
+                  >
+                    <option value={0}>No Free Refills (0x)</option>
+                    <option value={1}>1x Free Refill</option>
+                    <option value={2}>2x Free Refills</option>
+                    <option value={3}>3x Free Refills</option>
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-1">

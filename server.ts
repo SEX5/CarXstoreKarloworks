@@ -384,6 +384,8 @@ async function addAccount(account: any): Promise<any> {
     car_images: account.car_images || "",
     credentials: encrypt(JSON.stringify({ email: account.email, password: account.password })),
     is_sold: !!account.is_sold,
+    max_replacements: Number(account.max_replacements) || 1,
+    max_refills: Number(account.max_refills) || 1,
     created_at: new Date().toISOString()
   };
 
@@ -416,6 +418,8 @@ async function updateAccount(id: string, values: any): Promise<any> {
   if (values.image_url !== undefined) sanitized.image_url = values.image_url;
   if (values.car_images !== undefined) sanitized.car_images = values.car_images;
   if (values.is_sold !== undefined) sanitized.is_sold = !!values.is_sold;
+  if (values.max_replacements !== undefined) sanitized.max_replacements = Number(values.max_replacements);
+  if (values.max_refills !== undefined) sanitized.max_refills = Number(values.max_refills);
   
   if (values.email !== undefined && values.password !== undefined) {
     sanitized.credentials = encrypt(JSON.stringify({ email: values.email, password: values.password }));
@@ -1102,6 +1106,231 @@ app.get("/api/orders", async (req, res) => {
   }
 });
 
+/**
+ * AUTOMATED ACCOUNT RECOVERY & MAINTENANCE CENTER ENDPOINTS
+ */
+
+// 1️⃣ ENDPOINT: AUTOMATED ACCOUNT REPLACEMENT (MODDED ACCOUNTS ONLY)
+app.post("/api/orders/replace", async (req, res) => {
+  const { gcashRefNumber } = req.body;
+
+  if (!gcashRefNumber) {
+    return res.status(400).json({ error: "Please enter your 13-digit GCash Reference Number." });
+  }
+
+  const normalizedRef = String(gcashRefNumber).replace(/\D/g, "");
+
+  if (normalizedRef.length !== 13) {
+    return res.status(400).json({ error: "Invalid reference number format. Must contain exactly 13 digits." });
+  }
+
+  try {
+    let originalOrder: any = null;
+    if (useRealSupabase && supabaseAdmin) {
+      const { data, error } = await supabaseAdmin.from("orders").select("*").eq("status", "completed");
+      if (!error && data) {
+        originalOrder = data.find((o: any) => {
+          const json = o.gcash_receipt_data || {};
+          return String(json.reference_number || "").trim() === normalizedRef || 
+                 String(json.gcash_ref_number || "").trim() === normalizedRef;
+        });
+      }
+    } else {
+      const db = getLocalDB();
+      originalOrder = db.orders.find((o: any) => 
+        (o.status === "completed") &&
+        (String(o.gcash_ref_number || "").trim() === normalizedRef || 
+         String(o.gcash_receipt_data?.reference_number || "").trim() === normalizedRef)
+      );
+    }
+
+    if (!originalOrder) {
+      return res.status(404).json({ error: "No completed order found matching this reference number." });
+    }
+
+    if (originalOrder.order_type !== "account") {
+      return res.status(403).json({ error: "Replacement accounts are only available for Modded Account packages." });
+    }
+    
+    let packageData: any = null;
+    if (useRealSupabase && supabaseAdmin) {
+      const { data: pkg, error: pkgErr } = await supabaseAdmin.from("accounts").select("*").eq("id", originalOrder.account_id);
+      if (!pkgErr && pkg && pkg.length > 0) packageData = pkg[0];
+    } else {
+      const db = getLocalDB();
+      packageData = db.accounts.find((a: any) => a.id === originalOrder.account_id);
+    }
+
+    if (!packageData) {
+      return res.status(404).json({ error: "Original package details not found." });
+    }
+
+    const lowerPackageName = (packageData.name || "").toLowerCase();
+    if (!lowerPackageName.includes("modded")) {
+      return res.status(403).json({ error: "Replacement accounts are only available for our high-risk 'Modded' account packages." });
+    }
+
+    // 🛡️ DYNAMIC CLAIM RESOLVER: Uses direct database column lookup or parses limit from name (e.g. "3x" -> 3)
+    let maxReplacementsAllowed = Number(packageData.max_replacements) || 0;
+    if (maxReplacementsAllowed === 0) {
+      const match = lowerPackageName.match(/(\d+)x/);
+      maxReplacementsAllowed = match ? parseInt(match[1]) : 1;
+    }
+
+    const replacementsCount = originalOrder.replacements_count || 0;
+    if (replacementsCount >= maxReplacementsAllowed) {
+      return res.status(400).json({ error: `You have already used up all available replacement claims (${maxReplacementsAllowed}/${maxReplacementsAllowed}) for this package.` });
+    }
+
+    // Security Check: Enforce a 24-Hour Cooldown between replacement requests
+    const lastReplaceTime = originalOrder.last_replacement_at ? new Date(originalOrder.last_replacement_at).getTime() : 0;
+    const cooldownPeriod = 24 * 60 * 60 * 1000; // 24 hours
+    const now = Date.now();
+
+    if (now - lastReplaceTime < cooldownPeriod) {
+      const timeLeftHours = Math.ceil((cooldownPeriod - (now - lastReplaceTime)) / (1000 * 60 * 60));
+      return res.status(429).json({ error: `You have already requested a replacement recently. Please wait ${timeLeftHours} hours.` });
+    }
+
+    // Generate fresh credentials for the replacement account
+    const uniqueSuffix = crypto.randomBytes(2).toString("hex"); // Generates random suffix e.g. "a3b9"
+    const newTargetEmail = `rep-${originalOrder.order_id.toLowerCase()}-${uniqueSuffix}@karlo.shop`;
+    const newTargetPassword = crypto.randomBytes(5).toString("hex");
+
+    console.log(`[REPLACEMENT] Triggering automated cloner for replacement on order: ${originalOrder.order_id}`);
+
+    // Call cloner API
+    const credentials = await createModdedAccountAPI(newTargetEmail, newTargetPassword, originalOrder.account_id);
+
+    // Save progress
+    const updatedFields = {
+      delivered_email: credentials.email,
+      delivered_password: encrypt(credentials.password),
+      replacements_count: replacementsCount + 1,
+      last_replacement_at: new Date().toISOString()
+    };
+
+    await updateOrderStatus(originalOrder.id, "completed", updatedFields);
+    res.json({
+      success: true,
+      message: `Replacement account successfully generated! (Claim ${replacementsCount + 1}/${maxReplacementsAllowed})`,
+      credentials: { email: credentials.email, password: credentials.password }
+    });
+
+  } catch (err: any) {
+    res.status(500).json({ error: "Replacement generation failed: " + err.message });
+  }
+});
+
+// 2️⃣ ENDPOINT: AUTOMATED ACCOUNT REFILL / TOP-UP (GRIND ACCOUNTS ONLY)
+app.post("/api/orders/refill", async (req, res) => {
+  const { gcashRefNumber, password } = req.body;
+
+  if (!gcashRefNumber || !password) {
+    return res.status(400).json({ error: "Please enter your 13-digit Reference Number and your current account Password." });
+  }
+
+  const normalizedRef = String(gcashRefNumber).replace(/\D/g, "");
+
+  if (normalizedRef.length !== 13) {
+    return res.status(400).json({ error: "Invalid reference number format." });
+  }
+
+  try {
+    let originalOrder: any = null;
+    if (useRealSupabase && supabaseAdmin) {
+      const { data, error } = await supabaseAdmin.from("orders").select("*").eq("status", "completed");
+      if (!error && data) {
+        originalOrder = data.find((o: any) => {
+          const json = o.gcash_receipt_data || {};
+          return String(json.reference_number || "").trim() === normalizedRef || 
+                 String(json.gcash_ref_number || "").trim() === normalizedRef;
+        });
+      }
+    } else {
+      const db = getLocalDB();
+      originalOrder = db.orders.find((o: any) => 
+        (o.status === "completed") &&
+        (String(o.gcash_ref_number || "").trim() === normalizedRef || 
+         String(o.gcash_receipt_data?.reference_number || "").trim() === normalizedRef)
+      );
+    }
+
+    if (!originalOrder) {
+      return res.status(404).json({ error: "No completed order found matching this reference number." });
+    }
+
+    if (originalOrder.order_type !== "account") {
+      return res.status(403).json({ error: "Free refills are only available for Account packages." });
+    }
+
+    let packageData: any = null;
+    if (useRealSupabase && supabaseAdmin) {
+      const { data: pkg, error: pkgErr } = await supabaseAdmin.from("accounts").select("*").eq("id", originalOrder.account_id);
+      if (!pkgErr && pkg && pkg.length > 0) packageData = pkg[0];
+    } else {
+      const db = getLocalDB();
+      packageData = db.accounts.find((a: any) => a.id === originalOrder.account_id);
+    }
+
+    if (!packageData) {
+      return res.status(404).json({ error: "Original package details not found." });
+    }
+
+    const packageName = (packageData.name || "").toLowerCase();
+    if (packageName.includes("modded")) {
+      return res.status(403).json({ error: "Refills are only available for Grind Accounts. Modded Accounts are eligible for replacements instead." });
+    }
+
+    // 🛡️ DYNAMIC CLAIM RESOLVER: Uses direct database column lookup or parses limit from name (e.g. "3x" -> 3)
+    let maxRefillsAllowed = Number(packageData.max_refills) || 0;
+    if (maxRefillsAllowed === 0) {
+      const match = packageName.match(/(\d+)x/);
+      maxRefillsAllowed = match ? parseInt(match[1]) : 1;
+    }
+
+    const refillsCount = originalOrder.refills_count || 0;
+
+    if (refillsCount >= maxRefillsAllowed) {
+      return res.status(400).json({ error: `You have already used up your free refill limit (${maxRefillsAllowed}/${maxRefillsAllowed}) for this account.` });
+    }
+
+    // 🕒 COOLDOWN CONFIGURATION: Enforce a 3-Day cooldown between refills (72 hours)
+    const lastRefillTime = originalOrder.last_refill_at ? new Date(originalOrder.last_refill_at).getTime() : 0;
+    const cooldownDays = 3; // <-- You can change this to 7 if you want a weekly cooldown
+    const cooldownPeriod = cooldownDays * 24 * 60 * 60 * 1000; 
+    const now = Date.now();
+
+    if (now - lastRefillTime < cooldownPeriod) {
+      const timeLeftDays = Math.ceil((cooldownPeriod - (now - lastRefillTime)) / (1000 * 60 * 60 * 24));
+      return res.status(429).json({ error: `You can only request 1 free refill every ${cooldownDays} days. Please wait ${timeLeftDays} days.` });
+    }
+
+    const targetEmail = originalOrder.delivered_email || originalOrder.customer_email;
+    const silverAmount = Number(packageData.silver) || 0;
+    const goldAmount = Number(packageData.gold) || 0;
+
+    console.log(`[REFILL] Injecting resources (+${silverAmount}S, +${goldAmount}G)`);
+
+    // Inject resources
+    await injectResourcesAPI(targetEmail, password, silverAmount, goldAmount, 0);
+
+    const updatedFields = {
+      refills_count: refillsCount + 1,
+      last_refill_at: new Date().toISOString()
+    };
+
+    await updateOrderStatus(originalOrder.id, "completed", updatedFields);
+    res.json({
+      success: true,
+      message: `Refill Successful! Your account has been topped up with +${silverAmount.toLocaleString()} Silver and +${goldAmount.toLocaleString()} Gold. (Refill Claim ${refillsCount + 1}/${maxRefillsAllowed})`
+    });
+
+  } catch (err: any) {
+    res.status(500).json({ error: "Refill injection failed: " + err.message });
+  }
+});
+
 // Admin save patch pricing
 app.post("/api/admin/patch-pricing", verifyAuthToken, async (req, res) => {
   const { patch_type, price, label, description } = req.body;
@@ -1242,8 +1471,28 @@ app.get("/api/order/status/:orderId", async (req, res) => {
     if (order.delivered_password) {
       decodedPassword = decrypt(order.delivered_password);
     }
+
+    // Include package limits if it's an account order
+    let packageLimits = { max_replacements: 0, max_refills: 0 };
+    if (order.order_type === "account" && order.account_id) {
+      if (useRealSupabase && supabaseAdmin) {
+        const { data: pkg } = await supabaseAdmin.from("accounts").select("max_replacements, max_refills").eq("id", order.account_id).single();
+        if (pkg) packageLimits = pkg;
+      } else {
+        const db = getLocalDB();
+        const pkg = db.accounts.find((a: any) => a.id === order.account_id);
+        if (pkg) {
+          packageLimits = {
+            max_replacements: pkg.max_replacements || 0,
+            max_refills: pkg.max_refills || 0
+          };
+        }
+      }
+    }
+
     res.json({
       ...order,
+      ...packageLimits,
       carx_password: order.carx_password ? "[Encrypted]" : "",
       delivered_password: decodedPassword
     });

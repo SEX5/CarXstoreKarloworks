@@ -398,6 +398,24 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                     {acc.maps_unlocked >= 10 ? "ALL MAPS" : `${acc.maps_unlocked} REGIONS`}
                   </span>
                 </div>
+
+                {acc.max_replacements && acc.max_replacements > 0 ? (
+                  <div className="flex flex-col">
+                    <span className="mb-0.5 text-[9px] text-zinc-600">REPLACEMENTS</span>
+                    <span className="text-cyan-400 text-sm font-sans tracking-tight font-bold">
+                      {acc.max_replacements}X CLAIMS
+                    </span>
+                  </div>
+                ) : null}
+
+                {acc.max_refills && acc.max_refills > 0 ? (
+                  <div className="flex flex-col">
+                    <span className="mb-0.5 text-[9px] text-zinc-600">REFILLS LIMIT</span>
+                    <span className="text-amber-400 text-sm font-sans tracking-tight font-bold">
+                      {acc.max_refills}X CLAIMS
+                    </span>
+                  </div>
+                ) : null}
               </div>
 
               {/* Bottom Trigger Action button */}

@@ -482,10 +482,16 @@ async function getOrderById(orderId: string): Promise<any> {
       const { data, error } = await supabaseAdmin.from("orders").select("*").eq("order_id", orderId);
       if (!error && data && data.length > 0) {
         const order = data[0];
-        if (order.gcash_receipt_data) {
-           return { ...order, ...order.gcash_receipt_data };
+        const combined = order.gcash_receipt_data ? { ...order, ...order.gcash_receipt_data } : order;
+        
+        if (combined.order_type === "account" && combined.account_id && !combined.max_refills) {
+            const { data: pkgData } = await supabaseAdmin.from("accounts").select("max_replacements, max_refills").eq("id", combined.account_id).single();
+            if (pkgData) {
+                combined.max_replacements = pkgData.max_replacements || 1;
+                combined.max_refills = pkgData.max_refills || 1;
+            }
         }
-        return order;
+        return combined;
       }
     } catch (err) {
       console.error("Supabase getOrderById error:", err);
@@ -493,10 +499,20 @@ async function getOrderById(orderId: string): Promise<any> {
   }
   const db = getLocalDB();
   const order = db.orders.find((o: any) => o.order_id === orderId) || null;
-  if (order && order.gcash_receipt_data) {
-    return { ...order, ...order.gcash_receipt_data };
+  if (order) {
+    const combined = order.gcash_receipt_data ? { ...order, ...order.gcash_receipt_data } : order;
+    
+    // Fallback if limits are missing (backward compatibility)
+    if (combined.order_type === "account" && combined.account_id && !combined.max_refills) {
+        const pkg = db.accounts.find((a: any) => a.id === combined.account_id);
+        if (pkg) {
+            combined.max_replacements = pkg.max_replacements || 1;
+            combined.max_refills = pkg.max_refills || 1;
+        }
+    }
+    return combined;
   }
-  return order;
+  return null;
 }
 
 async function checkRefNumberUsed(refNumber: string): Promise<boolean> {
@@ -741,6 +757,20 @@ async function addOrder(order: any): Promise<any> {
   }
 
   const customId = `ORD-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+  
+  // Capture durable limits from the account package at the time of purchase
+  let maxReplacements = 1;
+  let maxRefills = 1;
+  
+  if (order.order_type === "account" && order.account_id) {
+    const db = getLocalDB();
+    const pkg = db.accounts.find((a: any) => a.id === order.account_id);
+    if (pkg) {
+      maxReplacements = Number(pkg.max_replacements) || 1;
+      maxRefills = Number(pkg.max_refills) || 1;
+    }
+  }
+
   const newOrder: any = {
     id: crypto.randomUUID(),
     order_id: order.order_id || customId,
@@ -759,7 +789,9 @@ async function addOrder(order: any): Promise<any> {
         carx_password: order.carx_password ? encrypt(order.carx_password) : null,
         patch_type: order.patch_type || order.gcash_receipt_data?.patch_type,
         custom_details: order.custom_details,
-        amount_paid: Number(order.amount_paid) || 0
+        amount_paid: Number(order.amount_paid) || 0,
+        max_replacements: maxReplacements,
+        max_refills: maxRefills
     },
     status: order.status || "pending_fulfillment",
     created_at: new Date().toISOString()
@@ -886,9 +918,10 @@ app.get("/api/settings", async (req, res) => {
 
 // Save settings configuration
 app.post("/api/settings", verifyAuthToken, async (req, res) => {
-  const { gcash_number, gcash_qr_url, telegram_link, is_online, maintenance_mode } = req.body;
+  const { gcash_number, gcash_name, gcash_qr_url, telegram_link, is_online, maintenance_mode } = req.body;
   try {
     if (gcash_number !== undefined) await saveSetting("gcash_number", gcash_number);
+    if (gcash_name !== undefined) await saveSetting("gcash_name", gcash_name);
     if (gcash_qr_url !== undefined) await saveSetting("gcash_qr_url", gcash_qr_url);
     if (telegram_link !== undefined) await saveSetting("telegram_link", telegram_link);
     if (is_online !== undefined) await saveSetting("is_online", String(is_online));

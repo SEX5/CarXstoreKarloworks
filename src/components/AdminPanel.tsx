@@ -25,7 +25,8 @@ export default function AdminPanel() {
 
   // Settings collection states
   const [settings, setSettings] = useState<any>({
-    gcash_number: "09123456789",
+    gcash_number: "09123963204",
+    gcash_name: "KA•L A.",
     gcash_qr_url: "",
     telegram_link: "https://t.me/CarXResellerSupportBot",
     is_online: "true",
@@ -256,8 +257,8 @@ export default function AdminPanel() {
     setNewAccSnapUrl(acc.snapshot_url || "");
     setNewAccImageUrl(acc.image_url || "");
     setNewAccCarImages(acc.car_images || "");
-    setNewAccMaxReplacements(acc.max_replacements || 1);
-    setNewAccMaxRefills(acc.max_refills || 1);
+    setNewAccMaxReplacements(acc.max_replacements !== undefined ? acc.max_replacements : 1);
+    setNewAccMaxRefills(acc.max_refills !== undefined ? acc.max_refills : 1);
     
     // Credentials are JSON stringified and encrypted in DB
     // We try to decode them if they look like the expected format
@@ -400,6 +401,7 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({
           gcash_number: settings.gcash_number,
+          gcash_name: settings.gcash_name,
           gcash_qr_url: settings.gcash_qr_url,
           telegram_link: settings.telegram_link,
           is_online: settings.is_online,
@@ -638,11 +640,10 @@ export default function AdminPanel() {
                                 const isModded = lowerPkgName.includes("modded");
                                 
                                 if (isModded) {
-                                  // Dynamically parse limit (1x, 2x, 3x) from name, fallback to 1
-                                  const limit = (lowerPkgName.match(/(\d+)x/) || [])[1] || "1";
+                                  const max_replacements = pkg?.max_replacements || o.gcash_receipt_data?.max_replacements || 1;
                                   return (
                                     <>
-                                      <p className="text-cyan-400 font-bold font-mono">🔄 Replacement: {o.replacements_count || 0}/{limit} Claims</p>
+                                      <p className="text-cyan-400 font-bold font-mono">🔄 Replacement: {o.replacements_count || 0}/{max_replacements} Claims</p>
                                       {o.last_replacement_at && (
                                         <p className="text-[7.5px] text-zinc-500 font-mono leading-tight">
                                           Last: {new Date(o.last_replacement_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
@@ -651,11 +652,10 @@ export default function AdminPanel() {
                                     </>
                                   );
                                 } else {
-                                  // Dynamically parse limit (1x, 2x, 3x) from name, fallback to 1
-                                  const limit = (lowerPkgName.match(/(\d+)x/) || [])[1] || "1";
+                                  const max_refills = pkg?.max_refills || o.gcash_receipt_data?.max_refills || 1;
                                   return (
                                     <>
-                                      <p className="text-amber-400 font-bold font-mono">🔋 Refills: {o.refills_count || 0}/{limit} Claims</p>
+                                      <p className="text-amber-400 font-bold font-mono">🔋 Refills: {o.refills_count || 0}/{max_refills} Claims</p>
                                       {o.last_refill_at && (
                                         <p className="text-[7.5px] text-zinc-500 font-mono leading-tight">
                                           Last: {new Date(o.last_refill_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
@@ -1049,6 +1049,14 @@ export default function AdminPanel() {
                       <p className="text-[10px] text-zinc-500 font-mono mt-1">
                         Level: {a.xp} XP | Silver: {formatResourceQuantity(a.silver)} | Gold: {formatResourceQuantity(a.gold)} | snapshot Url: {a.snapshot_url ? "YES" : "NO"}
                       </p>
+                      <div className="flex gap-2 mt-1">
+                        <span className="text-[9px] text-cyan-400 font-mono bg-cyan-400/5 px-2 py-0.5 border border-cyan-400/10 rounded uppercase font-bold">
+                          {a.max_replacements || 0}x Replacements
+                        </span>
+                        <span className="text-[9px] text-amber-400 font-mono bg-amber-400/5 px-2 py-0.5 border border-amber-400/10 rounded uppercase font-bold">
+                          {a.max_refills || 0}x Refills
+                        </span>
+                      </div>
                       <p className="text-[10px] text-indigo-400 mt-1 font-mono bg-black px-2 py-0.5 border border-zinc-900 rounded inline-block">
                         🔐 logins: {a.decoded_credentials}
                       </p>
@@ -1235,15 +1243,28 @@ export default function AdminPanel() {
 
           <form onSubmit={handleSaveSettings} className="space-y-6 font-mono text-[11px] text-zinc-400">
             {/* GCash Phone Number */}
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">GCash Manual Receiver Number</label>
-              <input
-                type="text"
-                required
-                value={settings.gcash_number}
-                onChange={(e) => setSettings({ ...settings, gcash_number: e.target.value })}
-                className="w-full bg-zinc-950 border border-zinc-900 p-2 text-sm text-white font-bold"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">GCash Receiver Name</label>
+                <input
+                  type="text"
+                  required
+                  value={settings.gcash_name || ""}
+                  onChange={(e) => setSettings({ ...settings, gcash_name: e.target.value })}
+                  placeholder="e.g. KA•L A."
+                  className="w-full bg-zinc-950 border border-zinc-900 p-2 text-sm text-[#FFD700] font-bold outline-none focus:border-[#FFD700]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">GCash Manual Receiver Number</label>
+                <input
+                  type="text"
+                  required
+                  value={settings.gcash_number}
+                  onChange={(e) => setSettings({ ...settings, gcash_number: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-900 p-2 text-sm text-white font-bold outline-none focus:border-[#FFD700]"
+                />
+              </div>
             </div>
 
             {/* GCash QR Code URL */}

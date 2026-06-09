@@ -14,6 +14,8 @@
       "snapshot_url": "https://street-prod.carx-online.com/snapshots/elite.json",
       "credentials": "f346dbedb6a72a3b10bf1b86:24153018d2e31a93b2661e86c96f1a60d64d2713e70201c249fcf96e5aaef3336d76e1f6fc8bfa5d92019ff14ddba7edf5dd2b5a4c4eb28bcd49f0d15b819c12a6410d:0a2c9452be9492070baec18cd2f4dc41",
       "is_sold": false,
+      "max_replacements": 2,
+      "max_refills": 2,
       "created_at": "2026-05-31T10:52:04.817Z"
     },
     {
@@ -30,6 +32,8 @@
       "snapshot_url": "https://street-prod.carx-online.com/snapshots/tokyo.json",
       "credentials": "2d1c08c7de26d9a5f5c8008e:7543650e0d4fa0eb661e949cffae777516b96ac20fcd2628611656d248183f496273bf35b60d311bdc66718a1da655ed70229b4bb668d19528e79e68cfcaff07887c:ce1022a5be895c1af9b71cc05148de25",
       "is_sold": false,
+      "max_replacements": 1,
+      "max_refills": 1,
       "created_at": "2026-06-02T10:52:04.818Z"
     },
     {
@@ -46,6 +50,8 @@
       "snapshot_url": "https://street-prod.carx-online.com/snapshots/bansafe_elite.json",
       "credentials": "efe2988282481fa97791e1ec:729a1c6d647ca0e68ae496176ea7978c4d9d110d4cc15d434234750fb53b9e495ac9b4a7dafcefec27836fcb35a7809fe7934909dbae3e868ea0:92adae3260112e24e730ce7d96ab3a99",
       "is_sold": false,
+      "max_replacements": 3,
+      "max_refills": 3,
       "created_at": "2026-06-03T10:52:04.818Z"
     }
   ],
@@ -154,7 +160,11 @@
   "settings": [
     {
       "key": "gcash_number",
-      "value": "09123456789"
+      "value": "09123963204"
+    },
+    {
+      "key": "gcash_name",
+      "value": "KA•L A."
     },
     {
       "key": "gcash_qr_url",
@@ -171,6 +181,16 @@
     {
       "key": "maintenance_mode",
       "value": "false"
+    }
+  ],
+  "system_logs": [
+    {
+      "id": "log_foeaasb",
+      "timestamp": "2026-06-09T17:31:53.034Z",
+      "type": "SECURITY_BREACH",
+      "message": "Duplicate GCash Reference Number Attempt: 7041695354406",
+      "fileName": "1000055445.png",
+      "refNum": "7041695354406"
     }
   ]
 }

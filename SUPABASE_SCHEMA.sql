@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- Seed Initial Admin Settings
 INSERT INTO settings (key, value) VALUES
-('gcash_number', '09123456789'),
+('gcash_number', '09123963204'),
+('gcash_name', 'KA•L A.'),
 ('gcash_qr_url', 'https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png'),
 ('telegram_link', 'https://t.me/CarXResellerSupportBot'),
 ('is_online', 'true'),

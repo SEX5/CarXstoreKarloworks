@@ -59,7 +59,8 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
 
   // GCash instructions settings
   const [gcashSettings, setGcashSettings] = useState({
-    gcash_number: "09123456789",
+    gcash_number: "09123963204",
+    gcash_name: "KA•L A.",
     gcash_qr_url: "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png"
   });
 
@@ -98,7 +99,8 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
         if (settingsResp.ok) {
           const s = await settingsResp.json();
           setGcashSettings({
-            gcash_number: s.gcash_number || "09123456789",
+            gcash_number: s.gcash_number || "09123963204",
+            gcash_name: s.gcash_name || "KA•L A.",
             gcash_qr_url: s.gcash_qr_url || "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png"
           });
         }
@@ -592,7 +594,10 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                     <div className="space-y-2">
                       <span className="block text-[9px] font-mono text-zinc-600 font-bold uppercase text-left">GCash Receiver</span>
                       <div className="p-2 bg-zinc-950 text-white font-mono text-sm border border-zinc-850 rounded flex items-center justify-between">
-                        <span>{gcashSettings.gcash_number}</span>
+                        <div className="flex flex-col text-left">
+                          <span className="text-[8px] text-zinc-500 font-bold uppercase truncate">Name: {gcashSettings.gcash_name}</span>
+                          <span>{gcashSettings.gcash_number}</span>
+                        </div>
                         <button
                           onClick={() => handleCopy(gcashSettings.gcash_number)}
                           className="text-[#FFD700] hover:text-white text-[9px] font-semibold uppercase"

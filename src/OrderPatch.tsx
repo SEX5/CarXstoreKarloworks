@@ -41,7 +41,8 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
 
   const [services, setServices] = useState<any[]>([]);
   const [gcashSettings, setGcashSettings] = useState({
-    gcash_number: "09123456789",
+    gcash_number: "09123963204",
+    gcash_name: "KA•L A.",
     gcash_qr_url: "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png"
   });
 
@@ -68,7 +69,8 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
         if (settingsResp.ok) {
           const s = await settingsResp.json();
           setGcashSettings({
-            gcash_number: s.gcash_number || "09123456789",
+            gcash_number: s.gcash_number || "09123963204",
+            gcash_name: s.gcash_name || "KA•L A.",
             gcash_qr_url: s.gcash_qr_url || "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png"
           });
         }
@@ -778,7 +780,10 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                     <div className="space-y-2">
                       <span className="block text-[9px] font-mono text-zinc-600 font-bold uppercase text-left">GCash Receiver</span>
                       <div className="p-2 bg-black text-white font-mono text-sm rounded border border-zinc-900 flex justify-between items-center">
-                        <span>{gcashSettings.gcash_number}</span>
+                        <div className="flex flex-col text-left">
+                          <span className="text-[8px] text-zinc-600 font-bold uppercase truncate">Name: {gcashSettings.gcash_name}</span>
+                          <span>{gcashSettings.gcash_number}</span>
+                        </div>
                         <button
                           onClick={() => handleCopyText(gcashSettings.gcash_number)}
                           className="text-[#FFD700] hover:text-white text-[9px]"

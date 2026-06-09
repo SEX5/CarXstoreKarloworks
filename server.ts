@@ -191,7 +191,8 @@ function getLocalDB() {
         { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
       ],
       settings: [
-        { key: "gcash_number", value: "09123456789" },
+        { key: "gcash_number", value: "09123963204" },
+        { key: "gcash_name", value: "KA•L A." },
         { key: "gcash_qr_url", value: "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png" },
         { key: "telegram_link", value: "https://t.me/CarXResellerSupportBot" },
         { key: "is_online", value: "true" },
@@ -1636,7 +1637,7 @@ app.post("/api/analyze-receipt", async (req, res) => {
       reference_number: randomRef,
       amount_php: Number(expectedAmount),
       datetime: "May 31, 2026 08:35 AM",
-      recipient: "CARX STREET STORE"
+      recipient: "KA•L A."
     };
 
     return res.json({
@@ -1653,10 +1654,11 @@ app.post("/api/analyze-receipt", async (req, res) => {
     const ANALYSIS_PROMPT = `ACT AS A GCASH RECEIPT SCANNER.
 1. Find the 13-digit Reference Number (look for 'Ref No' or 'Reference No').
 2. Find the total Amount Sent in PHP.
-3. You must output ONLY a raw JSON object. Do not include any explanations or markdown formatting outside the JSON.
+3. Find the Recipient Name (the masked name at the top, e.g., 'KA•L A.').
+4. You must output ONLY a raw JSON object. Do not include any explanations or markdown formatting outside the JSON.
 
 Expected Output Format:
-{"extracted_info": {"reference_number": "13DIGITS", "amount": "NUMBER"}, "verification_status": "APPROVED"}`;
+{"extracted_info": {"reference_number": "13DIGITS", "amount": "NUMBER", "recipient": "NAME"}, "verification_status": "APPROVED"}`;
 
     let text = "";
     const openRouterModels = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"];
@@ -1726,9 +1728,10 @@ Expected Output Format:
                 type: Type.OBJECT,
                 properties: {
                   reference_number: { type: Type.STRING },
-                  amount: { type: Type.STRING }
+                  amount: { type: Type.STRING },
+                  recipient: { type: Type.STRING }
                 },
-                required: ["reference_number", "amount"]
+                required: ["reference_number", "amount", "recipient"]
               },
               verification_status: { type: Type.STRING }
             },
@@ -1751,6 +1754,7 @@ Expected Output Format:
 
     let refNum = "";
     let amtNum = 0;
+    let recipientName = "";
     
     if (parsedOCR.extracted_info) {
       if (parsedOCR.extracted_info.reference_number) {
@@ -1759,11 +1763,22 @@ Expected Output Format:
       if (parsedOCR.extracted_info.amount) {
          amtNum = Number(String(parsedOCR.extracted_info.amount).replace(/,/g, ""));
       }
+      if (parsedOCR.extracted_info.recipient) {
+         recipientName = String(parsedOCR.extracted_info.recipient).toUpperCase();
+      }
     }
 
     if (!parsedOCR.verification_status || parsedOCR.verification_status !== "APPROVED" || !refNum) {
       const errorMsg = "The uploaded photo is not recognized as a valid GCash receipt screenshot. Please upload a clear receipt.";
       logSystemError("GCASH_SCAN_FAILED", errorMsg, { fileName, expectedAmount });
+      return res.json({ success: false, error: errorMsg });
+    }
+
+    // 🛡️ RECIPIENT NAME VALIDATION: Ensure money was sent to the correct shop account (KA•L A.)
+    const isValidRecipient = recipientName.includes("KA") && (recipientName.includes("L") || recipientName.includes("•")) && recipientName.includes("A");
+    if (recipientName && !isValidRecipient) {
+      const errorMsg = `This receipt shows payment to "${recipientName}", but the required recipient is "KA•L A.". Please ensure you are paying the correct account.`;
+      logSystemError("GCASH_SCAN_FAILED", errorMsg, { fileName, expectedAmount, recipientName });
       return res.json({ success: false, error: errorMsg });
     }
 
@@ -1802,7 +1817,7 @@ Expected Output Format:
         amount_php: amtNum,
         datetime: new Date().toLocaleString(),
         sender_name: "GCASH USER",
-        recipient: "CARX STORE"
+        recipient: recipientName || "KA•L A."
       }
     });
 

@@ -194,9 +194,17 @@ export default function RecoveryCenter({ onNavigate }: RecoveryCenterProps) {
                 <div className="space-y-4">
                   {/* GCash Ref Input */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                      <Hash className="w-3 h-3 text-[#FFD700]" />
-                      13-Digit GCash Reference Number
+                    <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Hash className="w-3 h-3 text-[#FFD700]" />
+                        13-Digit GCash Reference Number
+                      </div>
+                      {gcashRefNumber.length > 0 && gcashRefNumber.length < 13 && (
+                        <span className="text-amber-500 animate-pulse">Waiting for 13 digits...</span>
+                      )}
+                      {gcashRefNumber.length === 13 && (
+                        <span className="text-emerald-500">Ready</span>
+                      )}
                     </label>
                     <input
                       type="text"
@@ -212,9 +220,12 @@ export default function RecoveryCenter({ onNavigate }: RecoveryCenterProps) {
                   {/* Password Input (Refill Only) */}
                   {activeTab === "refill" && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                        <KeyRound className="w-3 h-3 text-[#FFD700]" />
-                        Current Account Password
+                      <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="w-3 h-3 text-[#FFD700]" />
+                          Current Account Password
+                        </div>
+                        {!password && <span className="text-amber-500 animate-pulse">Required</span>}
                       </label>
                       <input
                         type="password"

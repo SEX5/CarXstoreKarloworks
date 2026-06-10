@@ -527,24 +527,19 @@ async function checkRefNumberUsed(refNumber: string): Promise<boolean> {
   
   if (useRealSupabase && supabaseAdmin) {
     try {
-      // NOTE: We only select 'gcash_receipt_data' because the top-level 'gcash_ref_number' column 
-      // is reported missing in the Supabase schema. We scan the JSON instead.
-      const { data, error } = await supabaseAdmin.from("orders").select("gcash_receipt_data");
+      // 🚀 Performance Optimization: Use JSONB containment or extraction for fast lookup
+      const { data, error } = await supabaseAdmin
+        .from("orders")
+        .select("id")
+        .or(`gcash_receipt_data->>reference_number.eq.${normalizedRef},gcash_receipt_data->>gcash_ref_number.eq.${normalizedRef}`)
+        .limit(1);
       
       if (error) {
         console.error("[SUPABASE] Error fetching orders for ref check:", error.message);
         return false;
       }
 
-      if (data) {
-         const found = data.some((o: any) => {
-           const json = o.gcash_receipt_data || {};
-           return String(json.reference_number || "").trim() === normalizedRef || 
-                  String(json.gcash_ref_number || "").trim() === normalizedRef;
-         });
-         if (found) console.warn(`[SECURITY] Duplicate blocked! GCash Ref: ${normalizedRef}`);
-         return found;
-      }
+      return !!(data && data.length > 0);
     } catch (err) {
       console.error("Supabase ref number check error:", err);
     }
@@ -623,7 +618,7 @@ async function injectCarAPI(email: string, password: string, carId: string): Pro
     return data;
 }
 
-async function injectResourcesAPI(email: string, password: string, silver: number, gold: number, xp: number): Promise<any> {
+async function injectResourcesAPI(email: string, password: string, silver: number, gold: number, xp: number, signal?: AbortSignal): Promise<any> {
     const apiUrl = "https://apiforwebsite-wd0l.onrender.com/api/v1/inject/resources";
     const secretToken = process.env.WORKER_SECRET_TOKEN;
     if (!secretToken) throw new Error("WORKER_SECRET_TOKEN not configured");
@@ -631,14 +626,27 @@ async function injectResourcesAPI(email: string, password: string, silver: numbe
     const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-Key": secretToken },
-        body: JSON.stringify({ email, password, silver, gold, xp })
+        body: JSON.stringify({ email, password, silver, gold, xp }),
+        signal: signal
     });
     
     const responseText = await response.text();
-    console.log("DEBUG: Inject Resources API response:", responseText);
+    console.log(`[INJECTION] API Response for ${email}:`, responseText);
 
     if (!response.ok) {
-        throw new Error(`Failed to inject resources: ${response.status} - ${responseText}`);
+        let errorMessage = responseText;
+        try {
+            const errorObj = JSON.parse(responseText);
+            errorMessage = errorObj.detail || errorObj.message || responseText;
+            // Handle nested error if present (like in the user report)
+            if (errorMessage.includes("CarX Login Failed")) {
+                const subMatch = errorMessage.match(/message":"([^"]+)"/);
+                if (subMatch) errorMessage = `Login Failed: ${subMatch[1]}`;
+            }
+        } catch (e) {
+            // Keep original responseText if not JSON
+        }
+        throw new Error(errorMessage);
     }
     
     const data = JSON.parse(responseText);
@@ -1197,13 +1205,15 @@ app.post("/api/orders/replace", async (req, res) => {
   try {
     let originalOrder: any = null;
     if (useRealSupabase && supabaseAdmin) {
-      const { data, error } = await supabaseAdmin.from("orders").select("*").eq("status", "completed");
-      if (!error && data) {
-        originalOrder = data.find((o: any) => {
-          const json = o.gcash_receipt_data || {};
-          return String(json.reference_number || "").trim() === normalizedRef || 
-                 String(json.gcash_ref_number || "").trim() === normalizedRef;
-        });
+      // 🚀 Performance Optimization: Search directly in JSONB metadata
+      const { data, error } = await supabaseAdmin
+        .from("orders")
+        .select("*")
+        .eq("status", "completed")
+        .or(`gcash_receipt_data->>reference_number.eq.${normalizedRef},gcash_receipt_data->>gcash_ref_number.eq.${normalizedRef}`);
+
+      if (!error && data && data.length > 0) {
+        originalOrder = data[0];
       }
     } else {
       const db = getLocalDB();
@@ -1309,13 +1319,15 @@ app.post("/api/orders/refill", async (req, res) => {
   try {
     let originalOrder: any = null;
     if (useRealSupabase && supabaseAdmin) {
-      const { data, error } = await supabaseAdmin.from("orders").select("*").eq("status", "completed");
-      if (!error && data) {
-        originalOrder = data.find((o: any) => {
-          const json = o.gcash_receipt_data || {};
-          return String(json.reference_number || "").trim() === normalizedRef || 
-                 String(json.gcash_ref_number || "").trim() === normalizedRef;
-        });
+      // 🚀 Optimized Lookup: Direct JSONB filtering
+      const { data, error } = await supabaseAdmin
+        .from("orders")
+        .select("*")
+        .eq("status", "completed")
+        .or(`gcash_receipt_data->>reference_number.eq.${normalizedRef},gcash_receipt_data->>gcash_ref_number.eq.${normalizedRef}`);
+
+      if (!error && data && data.length > 0) {
+        originalOrder = data[0];
       }
     } else {
       const db = getLocalDB();
@@ -1376,14 +1388,30 @@ app.post("/api/orders/refill", async (req, res) => {
       return res.status(429).json({ error: `You can only request 1 free refill every ${cooldownDays} days. Please wait ${timeLeftDays} days.` });
     }
 
-    const targetEmail = originalOrder.delivered_email || originalOrder.customer_email;
+    const targetEmail = (originalOrder.delivered_email || originalOrder.customer_email || "").trim();
     const silverAmount = Number(packageData.silver) || 0;
     const goldAmount = Number(packageData.gold) || 0;
 
-    console.log(`[REFILL] Injecting resources (+${silverAmount}S, +${goldAmount}G)`);
+    if (!targetEmail) {
+      return res.status(400).json({ error: "Game account email missing from order history. Please contact support." });
+    }
 
-    // Inject resources
-    await injectResourcesAPI(targetEmail, password, silverAmount, goldAmount, 0);
+    console.log(`[REFILL] Starting injection for ${targetEmail}. Resources: +${silverAmount}S, +${goldAmount}G`);
+
+    // 💉 Inject resources with timeout protection
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout for stability
+
+    try {
+      await injectResourcesAPI(targetEmail, password, silverAmount, goldAmount, 0, controller.signal);
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error("Injection request timed out (90s). The server might be slow, please try again in a few minutes.");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const updatedFields = {
       refills_count: refillsCount + 1,
@@ -1397,7 +1425,8 @@ app.post("/api/orders/refill", async (req, res) => {
     });
 
   } catch (err: any) {
-    res.status(500).json({ error: "Refill injection failed: " + err.message });
+    console.error(`[REFILL ERROR] ${err.message}`);
+    res.status(500).json({ error: err.message });
   }
 });
 

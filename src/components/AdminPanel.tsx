@@ -73,6 +73,21 @@ export default function AdminPanel() {
   const [updatingSettings, setUpdatingSettings] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
 
+  // Manual Order Entry States
+  const [showManualOrderModal, setShowManualOrderModal] = useState(false);
+  const [manualOrderRef, setManualOrderRef] = useState("");
+  const [manualOrderEmail, setManualOrderEmail] = useState("");
+  const [manualOrderType, setManualOrderType] = useState<"account" | "patch">("account");
+  const [manualOrderAccountId, setManualOrderAccountId] = useState("");
+  const [manualOrderPatchType, setManualOrderPatchType] = useState("");
+  const [manualOrderAmount, setManualOrderAmount] = useState("");
+  const [manualOrderLoading, setManualOrderLoading] = useState(false);
+  const [manualOrderError, setManualOrderError] = useState<string | null>(null);
+  const [manualOrderSuccess, setManualOrderSuccess] = useState(false);
+
+  const [deletingOrderId, setDeletingOrderId] = useState<string | number | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | number | null>(null);
+  
   // Login handler
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -421,6 +436,87 @@ export default function AdminPanel() {
     }
   };
 
+  const handleCreateManualOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setManualOrderLoading(true);
+    setManualOrderError(null);
+    setManualOrderSuccess(false);
+
+    try {
+      const resp = await fetch("/api/admin/orders/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          gcash_ref: manualOrderRef,
+          customer_email: manualOrderEmail,
+          type: manualOrderType,
+          account_id: manualOrderAccountId,
+          patch_type: manualOrderPatchType,
+          amount: manualOrderAmount,
+          status: "completed"
+        })
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Failed to create manual order.");
+
+      setManualOrderSuccess(true);
+      loadDashboardData();
+      // Reset form
+      setManualOrderRef("");
+      setManualOrderEmail("");
+      setManualOrderAmount("");
+      setTimeout(() => {
+        setManualOrderSuccess(false);
+        setShowManualOrderModal(false);
+      }, 2000);
+    } catch (err: any) {
+      setManualOrderError(err.message);
+    } finally {
+      setManualOrderLoading(false);
+    }
+  };
+  
+  const handleDeleteOrder = async (id: string | number) => {
+    if (!token) return;
+    
+    // Safety check: require two clicks
+    if (confirmingDeleteId !== id) {
+      setConfirmingDeleteId(id);
+      setTimeout(() => setConfirmingDeleteId(null), 3000); // Reset after 3 seconds
+      return;
+    }
+
+    setDeletingOrderId(id);
+    setConfirmingDeleteId(null);
+    
+    try {
+      const resp = await fetch(`/api/admin/orders/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Failed to delete order.");
+
+      // Refresh data
+      loadDashboardData();
+    } catch (err: any) {
+      console.error("Delete order error:", err);
+      // We'll show errors via a more visible mechanism if possible, 
+      // but for now, we'll keep the alert fallback just in case, but styled or logged.
+      alert(`SYSTEM ERROR: ${err.message}`);
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
+
   const handleToggleOnline = () => {
     const nextVal = settings.is_online === "true" ? "false" : "true";
     setSettings((prev: any) => ({ ...prev, is_online: nextVal }));
@@ -568,20 +664,30 @@ export default function AdminPanel() {
       {activeTab === "orders" && (
         <div className="space-y-6" id="admin-tab-orders">
           {/* Status Filter selectors */}
-          <div className="flex gap-2" id="orders-status-filters">
-            {["all", "pending_fulfillment", "paid", "completed", "rejected"].map((sf) => (
-              <button
-                key={sf}
-                onClick={() => setOrderStatusFilter(sf)}
-                className={`px-3 py-1.5 rounded-sm font-mono text-[9px] uppercase tracking-wide font-bold cursor-pointer border ${
-                  orderStatusFilter === sf
-                    ? "bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/30"
-                    : "bg-zinc-950 text-zinc-500 border-zinc-900 hover:border-zinc-805 hover:text-zinc-300"
-                }`}
-              >
-                {sf.replace("_", " ")}
-              </button>
-            ))}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" id="orders-status-filters">
+            <div className="flex flex-wrap gap-2">
+              {["all", "pending_fulfillment", "paid", "completed", "rejected"].map((sf) => (
+                <button
+                  key={sf}
+                  onClick={() => setOrderStatusFilter(sf)}
+                  className={`px-3 py-1.5 rounded-sm font-mono text-[9px] uppercase tracking-wide font-bold cursor-pointer border ${
+                    orderStatusFilter === sf
+                      ? "bg-[#FFD700]/10 text-[#FFD700] border-[#FFD700]/30"
+                      : "bg-zinc-950 text-zinc-500 border-zinc-900 hover:border-zinc-805 hover:text-zinc-300"
+                  }`}
+                >
+                  {sf.replace("_", " ")}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowManualOrderModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#FFD700] hover:bg-white text-black font-black uppercase text-[10px] tracking-wider transition-colors rounded shadow-lg shadow-[#FFD700]/10"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Register Manual Order
+            </button>
           </div>
 
           {filteredOrders.length === 0 ? (
@@ -745,6 +851,33 @@ export default function AdminPanel() {
                               </button>
                             </div>
                           )}
+
+                          <button
+                            onClick={() => handleDeleteOrder(o.id)}
+                            disabled={deletingOrderId === o.id}
+                            className={`mt-3 flex items-center justify-center gap-2 py-1.5 px-3 rounded border transition-all ${
+                              deletingOrderId === o.id 
+                                ? "bg-zinc-900 border-zinc-900 text-zinc-500 opacity-50 cursor-not-allowed" 
+                                : confirmingDeleteId === o.id
+                                ? "bg-red-600 border-red-500 text-white animate-pulse cursor-pointer shadow-[0_0_15px_-3px_rgba(220,38,38,0.5)]"
+                                : "bg-zinc-950/50 border-zinc-900/50 text-zinc-500 hover:text-red-500 hover:border-red-500/30 hover:bg-red-500/5 cursor-pointer"
+                            }`}
+                          >
+                            {deletingOrderId === o.id ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : confirmingDeleteId === o.id ? (
+                                <Trash2 className="w-3.5 h-3.5" />
+                            ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                            <span className="text-[9px] font-mono font-black uppercase tracking-wider">
+                              {deletingOrderId === o.id 
+                                ? "Deleting..." 
+                                : confirmingDeleteId === o.id 
+                                ? "Confirm Erasure?" 
+                                : "Delete Order"}
+                            </span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1530,6 +1663,164 @@ export default function AdminPanel() {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manual Order Registration Modal */}
+      <AnimatePresence>
+        {showManualOrderModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !manualOrderLoading && setShowManualOrderModal(false)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg rounded-2xl bg-[#0A0A0A] border border-zinc-800 p-8 shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-32 h-32 bg-[#FFD700]/5 blur-3xl rounded-full" />
+              
+              <div className="relative mb-6">
+                <h2 className="text-xl font-black italic tracking-tighter text-white uppercase flex items-center gap-2.5">
+                  <Plus className="w-5 h-5 text-[#FFD700]" />
+                  Internal Order Registration
+                </h2>
+                <p className="text-zinc-500 text-[10px] font-mono mt-1 uppercase tracking-widest font-bold">Manual Backend Entry System</p>
+              </div>
+
+              <form onSubmit={handleCreateManualOrder} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Customer Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="customer@email.com"
+                    value={manualOrderEmail}
+                    onChange={(e) => setManualOrderEmail(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-900 p-3 rounded-lg text-sm text-white font-mono focus:border-[#FFD700] transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">13-Digit GCash Ref Number</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={13}
+                    placeholder="2039 1827 3645 1"
+                    value={manualOrderRef}
+                    onChange={(e) => setManualOrderRef(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-900 p-3 rounded-lg text-sm text-white font-mono focus:border-[#FFD700] transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Order Category</label>
+                    <select
+                      value={manualOrderType}
+                      onChange={(e) => setManualOrderType(e.target.value as any)}
+                      className="w-full bg-zinc-950 border border-zinc-900 p-3 rounded-lg text-sm text-white font-mono focus:border-[#FFD700] transition-colors"
+                    >
+                      <option value="account">ACCOUNT UNIT</option>
+                      <option value="patch">INJECTION PATCH</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Price Paid (PHP)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="299.00"
+                      value={manualOrderAmount}
+                      onChange={(e) => setManualOrderAmount(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-900 p-3 rounded-lg text-sm text-[#FFD700] font-mono font-bold focus:border-[#FFD700] transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {manualOrderType === "account" && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Link Package Unit</label>
+                    <select
+                      value={manualOrderAccountId}
+                      onChange={(e) => setManualOrderAccountId(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-900 p-3 rounded-lg text-sm text-white font-mono focus:border-[#FFD700] transition-colors"
+                    >
+                      <option value="">Select Account Unit...</option>
+                      {accounts.map(a => (
+                        <option key={a.id} value={a.id}>{a.name} (₱{a.price})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {manualOrderType === "patch" && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Inject Formula Type</label>
+                    <select
+                      value={manualOrderPatchType}
+                      onChange={(e) => setManualOrderPatchType(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-900 p-3 rounded-lg text-sm text-white font-mono focus:border-[#FFD700] transition-colors"
+                    >
+                      <option value="">Select Patch Type...</option>
+                      {patchPricing.map(p => (
+                        <option key={p.patch_type} value={p.patch_type}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {manualOrderError && (
+                  <motion.p
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="text-xs text-[#FF3333] font-mono bg-[#FF3333]/5 border border-[#FF3333]/15 p-3 rounded-lg"
+                  >
+                    ⚠ {manualOrderError}
+                  </motion.p>
+                )}
+
+                {manualOrderSuccess && (
+                  <motion.p
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-xs text-emerald-400 font-mono bg-emerald-500/5 border border-emerald-500/15 p-3 rounded-lg text-center font-bold"
+                  >
+                    ✓ ORDER REGISTERED IN DATABASE
+                  </motion.p>
+                )}
+
+                <div className="flex gap-3 pt-4 border-t border-zinc-900">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualOrderModal(false)}
+                    disabled={manualOrderLoading}
+                    className="flex-1 py-3 border border-zinc-900 hover:bg-zinc-900 text-zinc-500 hover:text-zinc-300 font-bold uppercase text-[10px] tracking-widest transition-colors rounded-lg font-mono"
+                  >
+                    ABORT
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={manualOrderLoading || !manualOrderRef || !manualOrderEmail}
+                    className={`flex-1 py-3 bg-[#FFD700] hover:bg-white text-black font-black uppercase text-[10px] tracking-widest transition-colors rounded-lg font-mono flex items-center justify-center gap-2 ${manualOrderLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    {manualOrderLoading ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      "DEPLOY ORDER"
+                    )}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

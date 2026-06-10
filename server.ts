@@ -910,6 +910,7 @@ function verifyAuthToken(req: Request, res: Response, next: any) {
     if (payload.exp < Date.now()) {
       return res.status(401).json({ error: "Client Authentication session has expired" });
     }
+    req.body = req.body || {};
     req.body.adminUser = payload;
     next();
   } catch (err) {
@@ -1689,6 +1690,66 @@ app.get("/api/admin/stats", verifyAuthToken, async (req, res) => {
       system_logs: db.system_logs || []
     });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/orders/create", verifyAuthToken, async (req, res) => {
+  const { gcash_ref, customer_email, type, account_id, patch_type, amount, status } = req.body;
+  
+  if (!gcash_ref || !customer_email || !type) {
+    return res.status(400).json({ error: "Reference number, email, and order type are required." });
+  }
+
+  try {
+    const orderData = {
+      gcash_ref_number: String(gcash_ref).trim(),
+      customer_email: String(customer_email).trim(),
+      order_type: type,
+      account_id: account_id || null,
+      patch_type: patch_type || null,
+      amount_paid: Number(amount) || 0,
+      status: status || "completed",
+      gcash_receipt_data: {
+        reference_number: String(gcash_ref).trim(),
+        gcash_ref_number: String(gcash_ref).trim(),
+        sender_name: "ADMIN_MANUAL_ENTRY",
+        amount_php: Number(amount) || 0,
+        datetime: new Date().toISOString(),
+        recipient: "KA•L A.",
+        patch_type: patch_type
+      }
+    };
+
+    const created = await addOrder(orderData);
+    res.json({ success: true, order: created });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/admin/orders/:id", verifyAuthToken, async (req, res) => {
+  const { id } = req.params;
+  console.log(`[ADMIN] Delete request for order ID: ${id}`);
+  try {
+    if (useRealSupabase && supabaseAdmin) {
+      const { error } = await supabaseAdmin.from("orders").delete().eq("id", id);
+      if (error) {
+        console.error(`[SUPABASE] Delete error: ${error.message}`);
+        throw error;
+      }
+      console.log(`[SUPABASE] Successfully deleted order: ${id}`);
+    } else {
+      let db = getLocalDB();
+      const initialCount = db.orders.length;
+      db.orders = db.orders.filter((o: any) => o && String(o.id) !== String(id));
+      const deletedCount = initialCount - db.orders.length;
+      saveLocalDB(db);
+      console.log(`[LOCALDB] Deleted ${deletedCount} orders matching ID: ${id}`);
+    }
+    res.json({ success: true, message: "Order deleted successfully." });
+  } catch (err: any) {
+    console.error(`[ADMIN] Delete failure: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

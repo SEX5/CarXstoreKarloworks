@@ -9,7 +9,6 @@ import zlib from "zlib";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Type } from "@google/genai";
-import multer from "multer";
 
 // Initialize Gemini client (for fallback OCR)
 const ai = new GoogleGenAI({
@@ -106,68 +105,111 @@ if (useRealSupabase) {
   }
 }
 
-// Multer setup for handling file uploads
-const upload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
-});
-
-async function uploadProofToStorage(file: any): Promise<string | null> {
-  if (!useRealSupabase || !supabaseAdmin) return null;
-  
-  try {
-    const fileExt = file.originalname.split('.').pop() || 'png';
-    const fileName = `${crypto.randomUUID()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    const { data, error } = await supabaseAdmin.storage
-      .from('Proofs')
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true
-      });
-
-    if (error) throw error;
-
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('Proofs')
-      .getPublicUrl(filePath);
-
-    return publicUrl;
-  } catch (err) {
-    console.error("Supabase storage upload error:", err);
-    return null;
-  }
-}
-
 const DB_FILE_PATH = path.join(process.cwd(), "database.json");
 
 function getLocalDB() {
   if (!fs.existsSync(DB_FILE_PATH)) {
     const initialSeed = {
-      accounts: [],
-      orders: [],
-      patch_pricing: [],
+      accounts: [
+        {
+          id: "3e589bdc-15a5-48b9-8798-29ea30e70332",
+          name: "Elite High-Octane Garage",
+          silver: 25000000,
+          gold: 8500,
+          xp: 45,
+          cars_unlocked: 12,
+          maps_unlocked: 10,
+          price: 499.00,
+          image_url: "hypercar_pack_bg",
+          car_images: "https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&q=80&w=800,https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80&w=800,https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&q=80&w=800",
+          snapshot_url: "https://street-prod.carx-online.com/snapshots/elite.json",
+          credentials: encrypt(JSON.stringify({ email: "racer_carx_01@carx.shop", password: "StarterPassCarX99!" })),
+          is_sold: false,
+          created_at: new Date(Date.now() - 3600000 * 24 * 3).toISOString()
+        },
+        {
+          id: "cb02aed3-bf30-4e4b-97cb-bc6046e729a6",
+          name: "Tokyo Drift Starter Pack",
+          silver: 12000000,
+          gold: 4000,
+          xp: 25,
+          cars_unlocked: 7,
+          maps_unlocked: 4,
+          price: 299.00,
+          image_url: "drift_car_pack_bg",
+          car_images: "https://images.unsplash.com/photo-1611245801312-51a8a014be0e?auto=format&fit=crop&q=80&w=800,https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&q=80&w=800",
+          snapshot_url: "https://street-prod.carx-online.com/snapshots/tokyo.json",
+          credentials: encrypt(JSON.stringify({ email: "tokyo_carx_02@carx.shop", password: "GoldBeastXStreet1" })),
+          is_sold: false,
+          created_at: new Date(Date.now() - 3600000 * 24 * 1).toISOString()
+        },
+        {
+          id: "3e589bdc-15a5-48b9-8798-29ea30e7033a",
+          name: "Ban-Safe Elite Pack",
+          silver: 50000000,
+          gold: 15000,
+          xp: 60,
+          cars_unlocked: 25,
+          maps_unlocked: 10,
+          price: 999.00,
+          image_url: "hypercar_pack_bg",
+          car_images: "https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&q=80&w=800",
+          snapshot_url: "https://street-prod.carx-online.com/snapshots/bansafe_elite.json",
+          credentials: encrypt(JSON.stringify({ email: "safe_racer@carx.shop", password: "SafePass123!" })),
+          is_sold: false,
+          created_at: new Date().toISOString()
+        }
+      ],
+      orders: [
+        {
+          id: "fa3290de-8c83-4927-b50a-810a99723fa3",
+          order_id: "ORD-9X12B",
+          order_type: "account",
+          customer_email: "hanoye0@gmail.com",
+          account_id: "cb02aed3-bf30-4e4b-97cb-bc6046e729a6",
+          delivered_email: "acct-ord-9x12b@carx.shop",
+          delivered_password: encrypt("f3a9c1b2d4"),
+          amount_paid: 299.00,
+          gcash_ref_number: "2039182736451",
+          gcash_receipt_url: "",
+          gcash_receipt_data: { sender_name: "JUAN DELA CRUZ", reference_number: "2039182736451", amount_php: 299, datetime: "2026-05-31 02:30 PM", recipient: "CARX STORE" },
+          status: "completed",
+          created_at: new Date(Date.now() - 3600000 * 4).toISOString()
+        }
+      ],
+      patch_pricing: [
+        { id: 1, patch_type: "ban_safe_t1", label: "Ban Safe (1.6M Silver & 1,750 Gold)", price: 100.00, description: "1.6M Silver + 1,750 Gold" },
+        { id: 2, patch_type: "ban_safe_t2", label: "Ban Safe (2.5M Silver & 2,900 Gold)", price: 150.00, description: "2.5M Silver + 2,900 Gold" },
+        { id: 3, patch_type: "ban_safe_t3", label: "Ban Safe (4M Silver & 4,000 Gold)", price: 200.00, description: "4M Silver + 4,000 Gold" },
+        { id: 4, patch_type: "ban_safe_t4", label: "Ban Safe (6M Silver & 6,000 Gold)", price: 250.00, description: "6M Silver + 6,000 Gold" },
+        { id: 5, patch_type: "ban_safe_t5", label: "Ban Safe (8M Silver & 8,000 Gold)", price: 300.00, description: "8M Silver + 8,000 Gold" },
+        { id: 6, patch_type: "ban_safe_t6", label: "Ban Safe (10M Silver & 10,000 Gold)", price: 350.00, description: "10M Silver + 10,000 Gold" },
+        { id: 7, patch_type: "map_unlock", label: "Map Unlock Only", price: 100.00, description: "Unlocks all maps" },
+        { id: 8, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
+        { id: 9, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
+        { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
+        { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
+        { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
+        { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" }
+      ],
       settings: [
         { key: "gcash_number", value: "09123963204" },
         { key: "gcash_name", value: "KA•L A." },
+        { key: "gcash_qr_url", value: "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png" },
         { key: "telegram_link", value: "https://t.me/CarXResellerSupportBot" },
         { key: "is_online", value: "true" },
         { key: "maintenance_mode", value: "false" }
-      ],
-      proofs: []
+      ]
     };
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(initialSeed, null, 2), "utf8");
     return initialSeed;
   }
   try {
     const data = fs.readFileSync(DB_FILE_PATH, "utf8");
-    const parsed = JSON.parse(data);
-    if (!parsed.proofs) parsed.proofs = [];
-    return parsed;
+    return JSON.parse(data);
   } catch (err) {
     console.error("Local DB read failed parsing, falling back to mock");
-    return { accounts: [], orders: [], patch_pricing: [], settings: [], proofs: [] };
+    return { accounts: [], orders: [], patch_pricing: [], settings: [] };
   }
 }
 
@@ -832,153 +874,6 @@ async function updateOrderStatus(id: string, status: string, additionalFields = 
   }
   return null;
 }
-
-// -------------------------------------------------------------
-// Proofs Database Logic
-// -------------------------------------------------------------
-async function getProofs(onlyApproved = true): Promise<any[]> {
-    if (useRealSupabase && supabaseAdmin) {
-        try {
-            let query = supabaseAdmin.from("proofs").select("*");
-            if (onlyApproved) query = query.eq("is_approved", true);
-            const { data, error } = await query.order("created_at", { ascending: false });
-            if (!error && data) return data;
-        } catch (err) {
-            console.error("Supabase getProofs error:", err);
-        }
-    }
-    const db = getLocalDB();
-    const proofs = db.proofs || [];
-    return onlyApproved ? proofs.filter((p: any) => p.is_approved) : proofs;
-}
-
-async function addProof(proof: any): Promise<any> {
-    const newProof = {
-        id: crypto.randomUUID(),
-        customer_name: proof.customer_name || "Anonymous Racer",
-        customer_email: proof.customer_email || "",
-        image_url: proof.image_url || "",
-        review: proof.review || "",
-        order_id: proof.order_id || null,
-        is_approved: true, // Default to approved for now since we don't have a complex admin workflow yet
-        created_at: new Date().toISOString()
-    };
-
-    if (useRealSupabase && supabaseAdmin) {
-        try {
-            const { data, error } = await supabaseAdmin.from("proofs").insert([newProof]).select();
-            if (!error && data) return data[0];
-        } catch (err) {
-            console.error("Supabase addProof error:", err);
-        }
-    }
-    const db = getLocalDB();
-    db.proofs = db.proofs || [];
-    db.proofs.push(newProof);
-    saveLocalDB(db);
-    return newProof;
-}
-
-async function deleteProof(id: string): Promise<boolean> {
-    if (useRealSupabase && supabaseAdmin) {
-        try {
-            const { error } = await supabaseAdmin.from("proofs").delete().eq("id", id);
-            if (!error) return true;
-        } catch (err) {
-            console.error("Supabase deleteProof error:", err);
-        }
-    }
-    const db = getLocalDB();
-    const initialLength = (db.proofs || []).length;
-    db.proofs = (db.proofs || []).filter((p: any) => p.id !== id);
-    saveLocalDB(db);
-    return (db.proofs || []).length < initialLength;
-}
-
-// Public Proofs list
-app.get("/api/proofs", async (req, res) => {
-    try {
-        const proofs = await getProofs(true);
-        res.json(proofs);
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Admin Proofs list
-app.get("/api/admin/proofs", verifyAuthToken, async (req, res) => {
-    try {
-        const proofs = await getProofs(false);
-        res.json(proofs);
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Submit a new proof
-app.post("/api/proofs", upload.single('image'), async (req: any, res) => {
-    console.log("[API] Received proof submission request");
-    const { customer_name, customer_email, review, order_id } = req.body;
-    let imageUrl = req.body.image_url; 
-    
-    if (req.file) {
-        console.log(`[API] Processing file upload: ${req.file.originalname} (${req.file.size} bytes)`);
-        try {
-            const uploadedUrl = await uploadProofToStorage(req.file);
-            if (uploadedUrl) {
-                imageUrl = uploadedUrl;
-                console.log(`[API] Uploaded to storage: ${imageUrl}`);
-            } else {
-                console.warn("[API] Storage upload failed (returned null)");
-            }
-        } catch (err) {
-            console.error("[API] Storage upload exception:", err);
-        }
-    }
-
-    if (!imageUrl) {
-        console.error("[API] No image URL found after processing");
-        return res.status(400).json({ error: "Proof image is required." });
-    }
-
-    try {
-        const created = await addProof({
-            customer_name,
-            customer_email,
-            image_url: imageUrl,
-            review,
-            order_id
-        });
-        console.log("[API] Proof record created successfully");
-        res.json({ success: true, proofs: created });
-    } catch (err: any) {
-        console.error("[API] addProof database error:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Final Error Handling Middleware for JSON API errors
-app.use((err: any, req: any, res: any, next: any) => {
-  if (res.headersSent) {
-    return next(err);
-  }
-  console.error("[SYSTEM ERROR] Unhandled exception:", err);
-  // Ensure we always return JSON even for unhandled errors
-  res.status(err.status || 500).json({ 
-    error: err.message || "Internal Server Error",
-    details: process.env.NODE_ENV !== 'production' ? err.stack : undefined
-  });
-});
-
-// Admin delete proof
-app.delete("/api/admin/proofs/:id", verifyAuthToken, async (req, res) => {
-    try {
-        const success = await deleteProof(req.params.id);
-        res.json({ success });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 // -------------------------------------------------------------
 // Authentication token helper

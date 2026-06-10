@@ -12,8 +12,6 @@ import AdminPanel from "./components/AdminPanel";
 import RecoveryCenter from "./components/RecoveryCenter";
 import SuccessPage from "./components/SuccessPage";
 import CancelPage from "./components/CancelPage";
-import ProofGallery from "./components/ProofGallery";
-import UploadProofForm from "./components/UploadProofForm";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("home");
@@ -21,8 +19,6 @@ export default function App() {
   const [viewParam, setViewParam] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSupportPrompt, setShowSupportPrompt] = useState(false);
-  const [isProofUploadOpen, setIsProofUploadOpen] = useState(false);
-  const [prefilledOrderId, setPrefilledOrderId] = useState<string | undefined>(undefined);
   const [configStatus, setConfigStatus] = useState({
     stripeConfigured: false,
     supabaseConfigured: false,
@@ -58,8 +54,6 @@ export default function App() {
         setCurrentView("success");
       } else if (path === "/cancel") {
         setCurrentView("cancel");
-      } else if (path === "/proofs") {
-        setCurrentView("proofs");
       } else {
         setCurrentView("home");
       }
@@ -142,15 +136,6 @@ export default function App() {
               Replacement
             </button>
 
-            <button
-              onClick={() => navigateTo("proofs")}
-              className={`cursor-pointer transition-colors hover:text-white pb-1 border-b-2 ${
-                currentView === "proofs" ? "text-[#FFD700] border-[#FFD700]" : "text-gray-400 border-transparent"
-              }`}
-            >
-              Proofs
-            </button>
-
             <span className="w-px h-4 bg-[#1A1A1A]" />
 
             <button
@@ -212,14 +197,6 @@ export default function App() {
               Account Replacement
             </button>
             <button
-              onClick={() => navigateTo("proofs")}
-              className={`text-left py-2 font-mono text-xs font-bold uppercase tracking-wide ${
-                currentView === "proofs" ? "text-[#FFD700]" : "text-gray-400"
-              }`}
-            >
-              Customer Proofs
-            </button>
-            <button
               onClick={() => navigateTo("admin")}
               className="text-left py-2 px-3 bg-[#080808] border border-[#1A1A1A] rounded font-mono text-xs font-bold uppercase tracking-wide text-[#FFD700]"
             >
@@ -270,17 +247,7 @@ export default function App() {
         {currentView === "accounts" && <AccountsCatalog onNavigate={navigateTo} />}
         {currentView === "order" && <OrderPatch onNavigate={navigateTo} />}
         {currentView === "recovery" && <RecoveryCenter onNavigate={navigateTo} />}
-        {currentView === "order_status" && (
-          <OrderStatus 
-            orderId={orderIdParam || ""} 
-            onNavigate={navigateTo} 
-            onOpenUpload={(id) => {
-              setPrefilledOrderId(id);
-              setIsProofUploadOpen(true);
-            }}
-          />
-        )}
-        {currentView === "proofs" && <ProofGallery onNavigate={navigateTo} onOpenUpload={() => setIsProofUploadOpen(true)} />}
+        {currentView === "order_status" && <OrderStatus orderId={orderIdParam || ""} onNavigate={navigateTo} />}
         {currentView === "admin" && <AdminPanel />}
         {currentView === "success" && <SuccessPage onNavigate={navigateTo} />}
         {currentView === "cancel" && <CancelPage onNavigate={navigateTo} />}
@@ -335,16 +302,6 @@ export default function App() {
       </footer>
 
       {/* 5. Floating Client Assistant Button Drawer */}
-      <UploadProofForm 
-        isOpen={isProofUploadOpen} 
-        onClose={() => {
-          setIsProofUploadOpen(false);
-          setPrefilledOrderId(undefined);
-        }} 
-        onSuccess={() => window.location.reload()} 
-        orderId={prefilledOrderId}
-      />
-
       <div className="fixed bottom-12 right-6 z-50">
         <div className="relative">
           {/* Support Prompt Pop balloon */}

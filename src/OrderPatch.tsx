@@ -947,7 +947,12 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                     <p>&gt; modification type: {currentService.label}</p>
                     <p>&gt; progression: <span className="text-emerald-400 font-bold">"completed"</span></p>
                     <p className="text-[10px] text-emerald-400/60 italic font-sans lowercase mt-3 leading-tight">
-                      * Automated patch successful. Resources have been synced with the game database. Restart your app to see changes.
+                      {selectedPatchType === "unlock_real_estate" 
+                        ? "* All Real Estate houses have been successfully injected and unlocked on your active profile. Restart your app to see changes."
+                        : selectedPatchType === "unlock_customs"
+                        ? "* All Banners, Avatars, and Frames have been successfully injected and unlocked on your active profile. Restart your app to see changes."
+                        : "* Automated patch successful. Resources have been synced with the game database. Restart your app to see changes."
+                      }
                     </p>
                   </div>
 

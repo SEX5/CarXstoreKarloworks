@@ -188,7 +188,9 @@ function getLocalDB() {
         { id: 8, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
         { id: 9, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
         { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
-        { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
+        { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
+        { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
+        { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" }
       ],
       settings: [
         { key: "gcash_number", value: "09123963204" },
@@ -296,7 +298,9 @@ async function getPatchPricing(): Promise<any[]> {
     { id: 8, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
     { id: 9, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
     { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
-    { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
+    { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
+    { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
+    { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" }
   ];
 
   let dbPricing: any[] = [];
@@ -312,8 +316,10 @@ async function getPatchPricing(): Promise<any[]> {
     dbPricing = db.patch_pricing;
   }
 
-  // If DB has pricing, use it but ENSURE max_level exists. 
-  // If missing, merge it in.
+  // Remove legacy/deprecated products from DB results if they clash with new ones
+  const legacyTypes = ["unlock_all", "unlock_apartments"];
+  dbPricing = dbPricing.filter(p => !legacyTypes.includes(p.patch_type));
+
   if (dbPricing.length > 0) {
     const missing = defaultPricing.filter(dp => !dbPricing.some(dbp => dbp.patch_type === dp.patch_type));
     if (missing.length > 0) {
@@ -703,6 +709,36 @@ async function injectLevelAPI(email: string, password: string): Promise<any> {
     
     const data = JSON.parse(responseText);
     return data;
+}
+
+async function injectCustomsAPI(email: string, password: string): Promise<any> {
+    const apiUrl = "https://apiforwebsite-wd0l.onrender.com/api/v1/inject/customs";
+    const secretToken = process.env.WORKER_SECRET_TOKEN;
+    if (!secretToken) throw new Error("WORKER_SECRET_TOKEN not configured");
+
+    const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": secretToken },
+        body: JSON.stringify({ email, password })
+    });
+    const responseText = await response.text();
+    if (!response.ok) throw new Error(`Failed to inject customs: ${response.status} - ${responseText}`);
+    return JSON.parse(responseText);
+}
+
+async function injectRealEstateAPI(email: string, password: string): Promise<any> {
+    const apiUrl = "https://apiforwebsite-wd0l.onrender.com/api/v1/inject/realestate";
+    const secretToken = process.env.WORKER_SECRET_TOKEN;
+    if (!secretToken) throw new Error("WORKER_SECRET_TOKEN not configured");
+
+    const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": secretToken },
+        body: JSON.stringify({ email, password })
+    });
+    const responseText = await response.text();
+    if (!response.ok) throw new Error(`Failed to inject real estate: ${response.status} - ${responseText}`);
+    return JSON.parse(responseText);
 }
 
 async function getGarageAPI(email: string, password: string): Promise<any> {
@@ -1473,6 +1509,16 @@ app.post("/api/orders", async (req, res) => {
                 );
                 console.log(`[CARX INJECTION] Max Level injected successfully.`);
             }
+
+            if (receiptData.patch_type === "unlock_customs") {
+                await injectCustomsAPI(email, passwordPlain);
+                console.log(`[CARX INJECTION] Customs injected successfully.`);
+            }
+
+            if (receiptData.patch_type === "unlock_real_estate") {
+                await injectRealEstateAPI(email, passwordPlain);
+                console.log(`[CARX INJECTION] Real Estate injected successfully.`);
+            }
             
             await updateOrderStatus(created.id, "completed");
             console.log(`[CARX INJECTION] Order ${created.order_id} marked as completed.`);
@@ -2003,7 +2049,9 @@ async function seedSupabaseIfNeeded() {
         { id: 8, patch_type: "max_nitro", label: "Max Nitro", price: 100.00, description: "Max nitro for one car" },
         { id: 9, patch_type: "inject_car", label: "Inject Custom Car", price: 300.00, description: "Inject a specific car by Car ID" },
         { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
-        { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" }
+        { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
+        { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
+        { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" }
       ]);
     }
   } catch (err: any) {

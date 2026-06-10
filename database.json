@@ -155,6 +155,20 @@
       "label": "Custom Resources",
       "price": 200,
       "description": "Custom silver/gold amount"
+    },
+    {
+      "id": 12,
+      "patch_type": "unlock_real_estate",
+      "label": "UNLOCK ALL APARTMENTS (REAL ESTATE)",
+      "price": 300,
+      "description": "Unlocks all Real Estate Houses on your active profile"
+    },
+    {
+      "id": 13,
+      "patch_type": "unlock_customs",
+      "label": "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)",
+      "price": 250,
+      "description": "Unlocks all Banners, Avatars, and Frames"
     }
   ],
   "settings": [

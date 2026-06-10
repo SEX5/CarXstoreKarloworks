@@ -107,3 +107,17 @@ ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE patch_pricing DISABLE ROW LEVEL SECURITY;
 ALTER TABLE accounts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE orders DISABLE ROW LEVEL SECURITY;
+
+-- 7. CREATE PROOFS TABLE (Success Timeline)
+CREATE TABLE IF NOT EXISTS proofs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_name TEXT,
+    customer_email TEXT,
+    image_url TEXT NOT NULL,
+    review TEXT,
+    order_id TEXT,
+    is_approved BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE proofs DISABLE ROW LEVEL SECURITY;

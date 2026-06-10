@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, XCircle, Clock, Loader2, Copy, Send, Mail, UserCheck, HelpCircle } from "lucide-react";
+import { 
+  CheckCircle2, XCircle, Clock, Loader2, Copy, Send, Mail, 
+  UserCheck, HelpCircle, Camera, Upload, ShieldCheck, Heart 
+} from "lucide-react";
 import { motion } from "motion/react";
 
 interface OrderStatusProps {
   orderId: string;
   onNavigate: (view: string) => void;
+  onOpenUpload?: (orderId: string) => void;
 }
 
-export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
+export default function OrderStatus({ orderId, onNavigate, onOpenUpload }: OrderStatusProps) {
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +194,34 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
             </div>
           )}
         </div>
+
+        {/* Proof of Delivery Request CTA */}
+        {order.status === "completed" && onOpenUpload && (
+           <div className="bg-[#FFD700] p-6 rounded relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 rotate-12 group-hover:rotate-45 transition-transform">
+                 <Camera className="w-20 h-20 text-black" />
+              </div>
+              <div className="relative z-10 space-y-4">
+                 <div className="flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-black fill-current" />
+                    <h3 className="text-black font-black italic uppercase text-lg tracking-tighter leading-none">
+                       Loved the <span className="underline">Results</span>?
+                    </h3>
+                 </div>
+                 <p className="text-black/80 text-[11px] font-sans leading-relaxed font-semibold">
+                    Help others racers by sharing a screenshot of your successful resource injection! 
+                    Upload a proof and join our Success Timeline.
+                 </p>
+                 <button 
+                  onClick={() => onOpenUpload(order.order_id)}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black hover:bg-zinc-800 text-[#FFD700] hover:text-white font-black text-xs uppercase tracking-widest transition-all skew-x-[-10deg]"
+                 >
+                    <Upload className="w-4 h-4 skew-x-[10deg]" />
+                    <span className="skew-x-[10deg]">Share My Proof Now</span>
+                 </button>
+              </div>
+           </div>
+        )}
 
         {/* Credentials Delivery Panel for Order Type Account */}
         {order.status === "completed" && order.order_type === "account" && (

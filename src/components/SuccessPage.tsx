@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, Copy, Sparkles, LogIn, ChevronRight, Loader2, KeyRound, Mail } from "lucide-react";
+import { CheckCircle2, Copy, Sparkles, LogIn, ChevronRight, Loader2, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 
 interface SuccessPageProps {
@@ -135,6 +135,21 @@ export default function SuccessPage({ onNavigate }: SuccessPageProps) {
               <div className="font-mono text-[9px] text-gray-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5 text-[#FFD700]" />
                 Your Instant Login Credentials
+              </div>
+              
+              {/* Added Guarantee Info Card */}
+              <div className="bg-emerald-500/5 border border-emerald-500/15 p-4 rounded mb-4 flex items-start gap-4">
+                <div className="p-2 bg-emerald-500/10 rounded">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h4 className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider mb-1">
+                    Free Lifetime Guarantee & Top-up Support
+                  </h4>
+                  <p className="text-gray-400 text-[10px] leading-relaxed">
+                    This account is protected by our zero-ban guarantee. If the account becomes inaccessible, we provide **free replacement**. Additionally, you are eligible for **free refills/top-ups** if your resources run low!
+                  </p>
+                </div>
               </div>
 
               <div className="relative rounded bg-black border border-[#222] p-5 overflow-hidden">

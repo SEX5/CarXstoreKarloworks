@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, XCircle, Clock, Loader2, Copy, Send, Mail, UserCheck, HelpCircle } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Loader2, Copy, Send, Mail, UserCheck, HelpCircle, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 
 interface OrderStatusProps {
@@ -154,9 +154,26 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
               <span className="text-zinc-305 text-zinc-300 font-mono">{order.gcash_ref_number}</span>
             </div>
           )}
+        </div>
 
-          {/* 🎫 CLAIMS TELEMETRY BREAKDOWN */}
-          {order.order_type === "account" && (
+        {/* Claims Status & Protection Section */}
+        {order.order_type === "account" && (
+          <div className="space-y-4">
+             {/* Guarantee Info Card */}
+             <div className="bg-emerald-500/5 border border-emerald-500/15 p-4 rounded flex items-start gap-3">
+              <div className="p-1.5 bg-emerald-500/10 rounded">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <h4 className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                  Buyer Protection & Guarantee
+                </h4>
+                <p className="text-zinc-400 text-[10px] leading-relaxed mt-1">
+                  You are eligible for **Free Replacement** if your account is banned or lost, and **Free Refills** for resources. Use this Tracking ID in the Recovery Center.
+                </p>
+              </div>
+            </div>
+
             <div className="pt-2 space-y-2">
               <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest font-bold">🎫 Claims Status</p>
               
@@ -188,8 +205,8 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
                 </p>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Credentials Delivery Panel for Order Type Account */}
         {order.status === "completed" && order.order_type === "account" && (

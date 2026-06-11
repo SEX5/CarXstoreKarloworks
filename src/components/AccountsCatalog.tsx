@@ -797,6 +797,21 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                     </p>
                   </div>
 
+                  {/* Added Guarantee Info Card */}
+                  <div className="bg-emerald-500/5 border border-emerald-500/15 p-4 rounded flex items-start gap-3">
+                    <div className="p-1.5 bg-emerald-500/10 rounded">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                        FREE ACCOUNT REPLACEMENT & REFILLS
+                      </h4>
+                      <p className="text-zinc-400 text-[10px] leading-relaxed mt-1">
+                        This package includes **LIFETIME GUARANTEE**. If your account is banned or you run out of resources, you can claim a **FREE REPLACEMENT** or **REFILL** in our Recovery Center using your Tracking ID.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="bg-zinc-950 border border-zinc-900 p-4 rounded-md space-y-2.5 relative">
                     <span className="block text-[10px] font-mono text-[#FFD700] uppercase font-bold">
                       INJECTION CONFIRMATION DETAILS
@@ -815,15 +830,23 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                   <div className="flex gap-4 pt-2">
                     <button
                       onClick={() => onNavigate("order_status", currentOrderId)}
-                      className="w-1/2 py-3 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white font-mono text-xs uppercase tracking-wide flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-1/3 py-3 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white font-mono text-xs uppercase tracking-wide flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <span>TRACK MY ORDER</span>
+                      <span>TRACK</span>
                       <ExternalLink className="w-3.5 h-3.5" />
                     </button>
 
                     <button
+                      onClick={() => onNavigate("recovery")}
+                      className="w-1/3 py-3 bg-zinc-950 hover:bg-emerald-500/10 border border-zinc-800 hover:border-emerald-500/30 text-zinc-400 hover:text-emerald-400 font-mono text-xs uppercase tracking-wide flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>RECOVERY</span>
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
                       onClick={handleCloseCheckoutModal}
-                      className="w-1/2 py-3 bg-[#FFD700] hover:bg-white text-black font-black uppercase tracking-wider font-mono text-xs text-center cursor-pointer"
+                      className="w-1/3 py-3 bg-[#FFD700] hover:bg-white text-black font-black uppercase tracking-wider font-mono text-xs text-center cursor-pointer"
                     >
                       COMPLETE
                     </button>

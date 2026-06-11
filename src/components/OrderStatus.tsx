@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, XCircle, Clock, Loader2, Copy, Send, Mail, UserCheck, HelpCircle, ShieldCheck } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Loader2, Copy, Send, Mail, UserCheck, HelpCircle, ShieldCheck, ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 
 interface OrderStatusProps {
@@ -171,6 +171,13 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
                 <p className="text-zinc-400 text-[10px] leading-relaxed mt-1">
                   You are eligible for **Free Replacement** if your account is banned or lost, and **Free Refills** for resources. Use this Tracking ID in the Recovery Center.
                 </p>
+                <button
+                  onClick={() => onNavigate("recovery")}
+                  className="mt-2 text-[9px] font-mono font-bold text-emerald-400 hover:text-white uppercase tracking-widest flex items-center gap-1 transition-colors group cursor-pointer"
+                >
+                  Go to Recovery Center
+                  <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                </button>
               </div>
             </div>
 

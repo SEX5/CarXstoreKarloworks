@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle2, Copy, Sparkles, LogIn, ChevronRight, Loader2, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Copy, Sparkles, LogIn, ChevronRight, Loader2, KeyRound, Mail, ShieldCheck, ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 
 interface SuccessPageProps {
@@ -149,6 +149,13 @@ export default function SuccessPage({ onNavigate }: SuccessPageProps) {
                   <p className="text-gray-400 text-[10px] leading-relaxed">
                     This account is protected by our zero-ban guarantee. If the account becomes inaccessible, we provide **free replacement**. Additionally, you are eligible for **free refills/top-ups** if your resources run low!
                   </p>
+                  <button
+                    onClick={() => onNavigate("recovery")}
+                    className="mt-2 text-[9px] font-mono font-bold text-emerald-400 hover:text-white uppercase tracking-widest flex items-center gap-1 transition-colors group cursor-pointer"
+                  >
+                    Go to Recovery Center
+                    <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
                 </div>
               </div>
 

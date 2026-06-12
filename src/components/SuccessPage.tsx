@@ -112,7 +112,31 @@ export default function SuccessPage({ onNavigate }: SuccessPageProps) {
           </div>
 
           {/* Invoice Summary Card */}
-          <div className="bg-black border border-[#222] rounded p-5 mb-8 space-y-3.5 font-sans">
+          <div className="bg-black border border-[#222] rounded p-5 mb-8 space-y-3.5 font-sans relative overflow-hidden">
+            {/* Added High Contrast Tracking ID */}
+            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded shadow-[0_0_15px_rgba(16,185,129,0.05)]">
+               <div className="flex justify-between items-center mb-1">
+                 <span className="text-emerald-400 font-mono font-bold text-[9px] uppercase tracking-widest">PROMINENT TRACKING ID</span>
+                 <span className="text-[8px] bg-emerald-400 text-black px-1.5 py-0.5 rounded font-black uppercase">RECOVERY KEY</span>
+               </div>
+               <div className="flex items-center justify-between">
+                 <strong className="text-white text-xl font-mono font-black tracking-widest uppercase">{invoice.orderId || invoice.referenceNumber || "ORD-XXXXX"}</strong>
+                 <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(invoice.orderId || invoice.referenceNumber || "");
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="bg-emerald-500 text-black p-1 px-2.5 rounded font-black text-[9px] uppercase tracking-widest hover:bg-white transition-all"
+                 >
+                  COPY
+                 </button>
+               </div>
+               <p className="text-[8px] text-zinc-500 mt-1 italic leading-tight uppercase font-mono">
+                 * explicitly labeled for use in the Recovery Center
+               </p>
+            </div>
+
             <div className="flex justify-between text-xs text-gray-400">
               <span className="uppercase tracking-wider text-[9px] font-bold text-gray-500">Customer Email:</span>
               <strong className="text-white">{invoice.customerEmail}</strong>

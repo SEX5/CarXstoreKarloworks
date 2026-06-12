@@ -77,6 +77,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
   
   // Deliver results
   const [currentOrderId, setCurrentOrderId] = useState("");
+  const [deliveredRefNumber, setDeliveredRefNumber] = useState("");
   const [deliveredEmail, setDeliveredEmail] = useState("");
   const [deliveredPassword, setDeliveredPassword] = useState("");
   const [copied, setCopied] = useState(false);
@@ -246,6 +247,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
 
       const generatedOrderId = orderResult.order.order_id;
       setCurrentOrderId(generatedOrderId);
+      setDeliveredRefNumber(ocrResult.data.reference_number);
 
       // Transition to Loader Step
       setModalStep("cloning_loader");
@@ -286,6 +288,32 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-10" id="catalog-view">
       
+      {/* Global Guarantee Banner */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded flex flex-col md:flex-row items-center justify-between gap-4"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-emerald-500/20 rounded-full">
+            <ShieldCheck className="w-6 h-6 text-emerald-400 animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-emerald-400 font-display font-black uppercase italic tracking-tighter text-sm md:text-base">
+              Lifetime Replacement & Free Refill Guarantee
+            </h3>
+            <p className="text-emerald-500/70 text-[10px] md:text-xs font-mono uppercase tracking-widest font-bold">
+              100% Anti-Ban Protocol • 24/7 Priority Support Active
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 bg-emerald-500 text-black text-[10px] font-mono font-black uppercase rounded-sm">
+            SECURED ✓
+          </span>
+        </div>
+      </motion.div>
+
       {/* Page Header */}
       <div className="text-center md:text-left mb-12">
         <h1 className="text-3xl md:text-5xl font-display font-black tracking-tight mb-4 text-white uppercase italic">
@@ -331,7 +359,13 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
               className="group relative rounded bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col justify-between p-6"
               id={`account-card-${acc.id}`}
             >
-              <div>
+              <div className="relative">
+                {/* Product Badge */}
+                <div className="absolute -top-2 -left-2 z-10 bg-emerald-500 text-black px-2 py-0.5 rounded-sm font-mono text-[8px] font-black uppercase tracking-tighter shadow-lg border border-emerald-400/50 flex items-center gap-1">
+                  <ShieldCheck className="w-2.5 h-2.5" />
+                  LIFETIME WARRANTY & REFILLS ACTIVE
+                </div>
+
                 {/* Premium Inventory Image Showcase */}
                 <div 
                   onClick={() => {
@@ -503,6 +537,21 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                     <div className="flex justify-between items-center pt-1 border-t border-zinc-900/60">
                       <span className="text-white font-bold uppercase font-mono text-[10px]">{selectedAccount.name}</span>
                       <strong className="text-[#FFD700] text-sm font-mono font-bold">₱{Number(selectedAccount.price).toFixed(2)}</strong>
+                    </div>
+                  </div>
+
+                  {/* Added Guarantee Info Card */}
+                  <div className="bg-emerald-500/5 border border-emerald-500/15 p-4 rounded flex items-start gap-4">
+                    <div className="p-2 bg-emerald-500/10 rounded">
+                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider mb-1">
+                        Lifetime Guarantee & Refill Support
+                      </h4>
+                      <p className="text-zinc-400 text-[10px] leading-relaxed">
+                        Every purchase is protected by our **Lifetime Replacement Policy**. If your account is lost or banned, we provide a new one at **NO COST**. Plus, you get **unlimited resource refills** up to your package limits!
+                      </p>
                     </div>
                   </div>
 
@@ -814,16 +863,32 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
 
                   <div className="bg-zinc-950 border border-zinc-900 p-4 rounded-md space-y-2.5 relative">
                     <span className="block text-[10px] font-mono text-[#FFD700] uppercase font-bold">
-                      INJECTION CONFIRMATION DETAILS
+                      SERVICE RECOVERY CREDENTIALS
                     </span>
                     
-                    <div className="p-3 bg-black border border-zinc-900 rounded font-mono text-xs space-y-1 text-zinc-300 relative">
-                      <p>📧 CarX Email: <span className="text-[#FFD700]">{carxEmail}</span></p>
-                      <p>📦 Package: <span className="text-[#FFD700]">{selectedAccount.name}</span></p>
+                    <div className="p-3 bg-black border-2 border-emerald-500/30 rounded font-mono text-xs space-y-1.5 text-zinc-300 relative shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                      <p className="text-emerald-400 font-bold uppercase text-[9px] mb-1">PROMINENT SERVICE KEY</p>
+                      <div className="flex items-center justify-between bg-zinc-950 p-2 rounded border border-emerald-500/20">
+                        <span className="text-[#FFD700] text-sm font-black tracking-widest">{deliveredRefNumber}</span>
+                        <button 
+                          onClick={() => handleCopy(deliveredRefNumber)}
+                          className="p-1 px-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 text-emerald-400 hover:text-black rounded text-[8px] font-bold transition-all"
+                        >
+                          COPY KEY
+                        </button>
+                      </div>
+                      <p className="text-[8px] text-zinc-500 leading-tight italic">
+                        * Save this SERVICE KEY! You need this 13-digit reference to claim free replacements or refills in the Recovery Center.
+                      </p>
+                      
+                      <div className="mt-3 space-y-1">
+                        <p>📧 CarX Email: <span className="text-[#FFD700]">{carxEmail}</span></p>
+                        <p>📦 Package: <span className="text-[#FFD700]">{selectedAccount.name}</span></p>
+                      </div>
                     </div>
 
                     <p className="text-[10px] text-zinc-500 leading-normal lowercase italic mt-2">
-                      * You can track this purchase on security order sequence ID: <strong>{currentOrderId}</strong>
+                      * Internal Order Sequence ID: <strong>{currentOrderId}</strong>
                     </p>
                   </div>
 

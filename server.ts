@@ -579,7 +579,18 @@ async function createModdedAccountAPI(customerEmail: string, password: string, a
         console.log("DEBUG: Cloner API response:", responseText);
 
         if (!response.ok) {
-            throw new Error(`Failed to create account via API: ${response.status} - ${responseText}`);
+            let errorMsg = responseText;
+            try {
+                const errorObj = JSON.parse(responseText);
+                if (errorObj.detail && errorObj.detail.includes("Email already registered")) {
+                    errorMsg = "This email is already registered in CarX Street. Please use a different email that is NOT yet connected to a CarX account.";
+                } else {
+                    errorMsg = errorObj.detail || errorObj.message || responseText;
+                }
+            } catch (e) {
+                // Keep original responseText if not JSON
+            }
+            throw new Error(errorMsg);
         }
 
         const data = JSON.parse(responseText);
@@ -992,6 +1003,34 @@ app.post("/api/get-garage", async (req, res) => {
     }
 });
 
+// Pre-payment credential verification endpoint
+app.post("/api/verify-carx-credentials", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, error: "Email and password are required for verification." });
+    }
+
+    try {
+        console.log(`[VERIFICATION] Triggering login check for ${email}`);
+        // Attempt login via get-garage endpoint which triggers a CarX login check
+        await getGarageAPI(email, password);
+        
+        console.log(`[VERIFICATION] Login success for ${email}`);
+        res.json({ success: true, message: "Credentials verified successfully." });
+    } catch (err: any) {
+        console.error(`[VERIFICATION] Login failed for ${email}:`, err.message);
+        
+        let errorMessage = "Invalid CarX credentials. Please check your email and password.";
+        if (err.message && (err.message.toLowerCase().includes("incorrect email or password") || err.message.toLowerCase().includes("login failed"))) {
+            errorMessage = "⚠️ Incorrect CarX Email or Password. Please double-check your credentials and try again.";
+        } else {
+            errorMessage = `⚠️ Verification Failed: ${err.message}`;
+        }
+        
+        res.status(401).json({ success: false, error: errorMessage });
+    }
+});
+
 // Get master car catalog
 app.get("/api/master-catalog", async (req, res) => {
     try {
@@ -1230,7 +1269,7 @@ app.post("/api/orders/replace", async (req, res) => {
     }
 
     if (originalOrder.order_type !== "account") {
-      return res.status(403).json({ error: "Replacement accounts are only available for Modded Account packages." });
+      return res.status(400).json({ error: "Replacement accounts are only available for our 'Modded' account packages." });
     }
     
     let packageData: any = null;
@@ -1248,7 +1287,7 @@ app.post("/api/orders/replace", async (req, res) => {
 
     const lowerPackageName = (packageData.name || "").toLowerCase();
     if (!lowerPackageName.includes("modded")) {
-      return res.status(403).json({ error: "Replacement accounts are only available for our high-risk 'Modded' account packages." });
+      return res.status(400).json({ error: "Replacement accounts are only available for our 'Modded' account packages." });
     }
 
     // 🛡️ DYNAMIC CLAIM RESOLVER: Uses direct database column lookup or parses limit from name (e.g. "3x" -> 3)
@@ -1344,7 +1383,7 @@ app.post("/api/orders/refill", async (req, res) => {
     }
 
     if (originalOrder.order_type !== "account") {
-      return res.status(403).json({ error: "Free refills are only available for Account packages." });
+      return res.status(400).json({ error: "Free refills are only available for Grinds account." });
     }
 
     let packageData: any = null;
@@ -1362,7 +1401,7 @@ app.post("/api/orders/refill", async (req, res) => {
 
     const packageName = (packageData.name || "").toLowerCase();
     if (packageName.includes("modded")) {
-      return res.status(403).json({ error: "Refills are only available for Grind Accounts. Modded Accounts are eligible for replacements instead." });
+      return res.status(400).json({ error: "Free refills are only available for Grinds account." });
     }
 
     // 🛡️ DYNAMIC CLAIM RESOLVER: Uses direct database column lookup or parses limit from name (e.g. "3x" -> 3)
@@ -1554,6 +1593,31 @@ app.post("/api/orders", async (req, res) => {
             console.log(`[CARX INJECTION] Order ${created.order_id} marked as completed.`);
         } catch (injErr: any) {
             console.error(`[CARX INJECTION] Patch injection failed for ${created.order_id}:`, injErr.message);
+            
+            const isCredentialError = injErr.message && (
+                injErr.message.toLowerCase().includes("login failed") || 
+                injErr.message.toLowerCase().includes("incorrect email or password") ||
+                injErr.message.toLowerCase().includes("invalid credentials") ||
+                injErr.message.toLowerCase().includes("already registered")
+            );
+
+            if (isCredentialError) {
+                console.log(`[AUTO-CLEANUP] Credential error detected for Patch Order ${created.order_id}. Deleting order to allow retry.`);
+                try {
+                    if (useRealSupabase && supabaseAdmin) {
+                        await supabaseAdmin.from("orders").delete().eq("id", created.id);
+                    } else {
+                        let db = getLocalDB();
+                        db.orders = db.orders.filter((o: any) => o.id !== created.id);
+                        saveLocalDB(db);
+                    }
+                    console.log(`[AUTO-CLEANUP] Order ${created.order_id} removed.`);
+                } catch (cleanupErr: any) {
+                    console.error(`[AUTO-CLEANUP] Failed cleanup for ${created.order_id}:`, cleanupErr.message);
+                }
+                return res.status(400).json({ error: `Fulfillment Failed: ${injErr.message}. Order record has been removed so you can retry with corrected credentials.` });
+            }
+
             logSystemError("INJECTION_FAILED", `Automatic patch failed for ${created.order_id}: ${injErr.message}`, {
                 order_id: created.order_id,
                 patch_type: receiptData.patch_type,
@@ -1608,6 +1672,39 @@ app.get("/api/order/status/:orderId", async (req, res) => {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/payment-status", async (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ success: false, error: "Missing session identifier" });
+  
+  try {
+    const order = await getOrderById(sessionId);
+    if (!order) return res.json({ success: false, verified: false, message: "Transaction not found." });
+    
+    // Decrypt password if it exists
+    let delivered_password = "";
+    if (order.delivered_password) {
+        delivered_password = decrypt(order.delivered_password);
+    }
+    
+    res.json({
+        success: true,
+        verified: order.status === "completed" || order.status === "paid",
+        invoice: {
+            orderId: order.order_id,
+            customerEmail: order.customer_email,
+            title: order.order_type === "account" ? "Account Resource Package" : "Resource Patch Injection",
+            price: order.amount_paid,
+            productType: order.order_type,
+            credentials: order.status === "completed" ? `Email: ${order.delivered_email || order.customer_email}\nPass: ${delivered_password}` : null,
+            message: order.status === "completed" ? "Successfully delivered." : "Payment verified. Fulfillment in progress...",
+            referenceNumber: order.order_id
+        }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -2053,6 +2150,34 @@ app.post("/api/create-account", async (req, res) => {
     
   } catch (err: any) {
     console.error("External account creation error:", err);
+    
+    const isCredentialError = err.message && (
+        err.message.toLowerCase().includes("already registered") || 
+        err.message.toLowerCase().includes("login failed") || 
+        err.message.toLowerCase().includes("incorrect email or password") ||
+        err.message.toLowerCase().includes("invalid credentials")
+    );
+
+    if (isCredentialError) {
+        console.log(`[AUTO-CLEANUP] Credential error detected for Order ${orderId}. Deleting order to allow retry.`);
+        try {
+            const orderToCleanup = await getOrderById(orderId);
+            if (orderToCleanup) {
+                if (useRealSupabase && supabaseAdmin) {
+                    await supabaseAdmin.from("orders").delete().eq("id", orderToCleanup.id);
+                } else {
+                    let db = getLocalDB();
+                    db.orders = db.orders.filter((o: any) => o.id !== orderToCleanup.id);
+                    saveLocalDB(db);
+                }
+                console.log(`[AUTO-CLEANUP] Order ${orderId} successfully removed.`);
+            }
+        } catch (cleanupErr: any) {
+            console.error(`[AUTO-CLEANUP] Failed to delete order ${orderId}:`, cleanupErr.message);
+        }
+        return res.status(400).json({ error: `${err.message}. Order record has been removed to allow you to retry with corrected information.` });
+    }
+    
     res.status(500).json({ error: err.message });
   }
 });

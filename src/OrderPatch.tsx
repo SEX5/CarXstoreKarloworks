@@ -55,9 +55,11 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [verifyingReceipt, setVerifyingReceipt] = useState(false);
+  const [verifyingCredentials, setVerifyingCredentials] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [completedOrderId, setCompletedOrderId] = useState("");
+  const [deliveredRefNumber, setDeliveredRefNumber] = useState("");
 
   // Load Pricing and settings configuration live on mount
   useEffect(() => {
@@ -173,7 +175,7 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
     description: "1.6M Silver + 1,750 Gold"
   };
 
-  const handleOpenPaymentWizard = (e: React.FormEvent) => {
+  const handleOpenPaymentWizard = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -192,10 +194,32 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
       return;
     }
 
-    setIsPayModalOpen(true);
-    setModalStep("pay_instructions");
-    setReceiptBase64(null);
-    setOcrError(null);
+    // NEW: Live Credential Verification Step
+    try {
+      setVerifyingCredentials(true);
+      const verifyResp = await fetch("/api/verify-carx-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: carxEmail, password: carxPassword })
+      });
+      
+      const verifyData = await verifyResp.json();
+      if (!verifyResp.ok) {
+        throw new Error(verifyData.error || "Login Verification Failed");
+      }
+
+      // Success! Proceed to payment
+      setIsPayModalOpen(true);
+      setModalStep("pay_instructions");
+      setReceiptBase64(null);
+      setOcrError(null);
+    } catch (err: any) {
+      setError(err.message || "Failed to verify game account sync details.");
+      // Scroll to error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setVerifyingCredentials(false);
+    }
   };
 
   const handleClosePaymentWizard = () => {
@@ -320,6 +344,7 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
       }
 
       setCompletedOrderId(orderResult.order.order_id);
+      setDeliveredRefNumber(ocrResult.data.reference_number);
       setModalStep("order_complete");
 
     } catch (err: any) {
@@ -675,14 +700,21 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
               {/* Submit triggers modal popup pay steps */}
               <button
                 type="submit"
-                disabled={!isFormValid}
-                className={`w-full py-3 font-black uppercase tracking-wider font-mono text-xs transition-colors ${
-                  isFormValid 
+                disabled={!isFormValid || verifyingCredentials}
+                className={`w-full py-3 font-black uppercase tracking-wider font-mono text-xs transition-colors flex items-center justify-center gap-2 ${
+                  isFormValid && !verifyingCredentials
                     ? "bg-[#FF3333] hover:bg-white text-white hover:text-black cursor-pointer" 
                     : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
                 }`}
               >
-                PROCEED TO GCASH VERIFICATION
+                {verifyingCredentials ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-[#FFD700]" />
+                    <span>VERIFYING GAME ACCOUNT...</span>
+                  </>
+                ) : (
+                  <span>PROCEED TO GCASH VERIFICATION</span>
+                )}
               </button>
             </form>
           </div>
@@ -943,8 +975,10 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
 
                   <div className="bg-zinc-950 border border-zinc-900 p-4 rounded leading-relaxed text-zinc-400 text-xs text-left space-y-1.5 font-mono">
                     <p className="text-emerald-400 font-bold uppercase text-[10px]">INJECTOR STATUS REPORT:</p>
+                    <p>&gt; service key: <span className="text-[#FFD700]">{deliveredRefNumber}</span></p>
                     <p>&gt; target account: {carxEmail}</p>
                     <p>&gt; modification type: {currentService.label}</p>
+                    <p>&gt; internal id: {completedOrderId}</p>
                     <p>&gt; progression: <span className="text-emerald-400 font-bold">"completed"</span></p>
                     <p className="text-[10px] text-emerald-400/60 italic font-sans lowercase mt-3 leading-tight">
                       {selectedPatchType === "unlock_real_estate" 

@@ -127,7 +127,7 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
         {/* Invoice specifications */}
         <div className="space-y-4">
           <div className="flex justify-between items-center text-xs border-b border-[#1A1A1A] pb-3 font-mono">
-            <span className="text-zinc-600 font-bold uppercase">TRACKING NO</span>
+            <span className="text-zinc-600 font-bold uppercase text-[9px]">TRACKING NO</span>
             <strong className="text-[#FFD700]">{order.order_id}</strong>
           </div>
 
@@ -169,7 +169,7 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
                   Buyer Protection & Guarantee
                 </h4>
                 <p className="text-zinc-400 text-[10px] leading-relaxed mt-1">
-                  You are eligible for **Free Replacement** if your account is banned or lost, and **Free Refills** for resources. Use this Tracking ID in the Recovery Center.
+                  You are eligible for **Free Replacement** if your account is banned or lost, and **Free Refills** for resources. Use your **GCash Reference ID** in the Recovery Center.
                 </p>
                 <button
                   onClick={() => onNavigate("recovery")}
@@ -208,7 +208,7 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
               
               {(order.max_replacements > 0 || order.max_refills > 0) && (
                 <p className="text-[8px] text-zinc-600 italic leading-tight">
-                  * You can request replacements or refills in the Replacement Center using your Tracking ID.
+                  * You can request replacements or refills in the Replacement Center using your 13-digit GCash Reference ID.
                 </p>
               )}
             </div>

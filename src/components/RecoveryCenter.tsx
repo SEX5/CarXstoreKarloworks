@@ -47,18 +47,28 @@ export default function RecoveryCenter({ onNavigate }: RecoveryCenterProps) {
         body: JSON.stringify(body)
       });
 
-      const contentType = response.headers.get("content-type");
       let result;
+      const contentType = response.headers.get("content-type");
+      
       if (contentType && contentType.includes("application/json")) {
         result = await response.json();
       } else {
+        // Fallback for non-JSON responses (HTML errors from infrastructure)
         const text = await response.text();
-        const statusText = response.statusText || `Status ${response.status}`;
-        throw new Error(response.status >= 500 ? "Server Error. Please try again later." : `${statusText}: ${text.slice(0, 100)}`);
+        if (!response.ok) {
+          // If it's a 403/404/500 with HTML, show a clean message instead of the raw HTML
+          if (response.status === 403) throw new Error("Access Denied: Your request was blocked by security filters. Please try again later.");
+          if (response.status >= 500) throw new Error("Server maintenance in progress. Please try again in a few minutes.");
+          
+          // Strip HTML tags for other errors
+          const cleanText = text.replace(/<[^>]*>?/gm, "").trim().slice(0, 100);
+          throw new Error(cleanText || `Error ${response.status}: ${response.statusText}`);
+        }
+        result = text; // Should not happen for success usually
       }
 
       if (!response.ok) {
-        throw new Error(result.error || "Execution failed");
+        throw new Error(result.error || result.message || "Request failed. Please check your credentials.");
       }
 
       setSuccessData(result);

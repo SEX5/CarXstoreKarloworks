@@ -16,7 +16,7 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
   const inMaintenance = settings.maintenance_mode === "true";
 
   const [pricingRange, setPricingRange] = useState("₱100 ~ ₱350");
-  const [orderCount, setOrderCount] = useState("32,500+");
+  const [orderCount, setOrderCount] = useState("1,500+");
 
   useEffect(() => {
     async function fetchStats() {
@@ -35,9 +35,9 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
         const oResp = await fetch("/api/orders");
         if (oResp.ok) {
           const orders = await oResp.json();
-          if (orders && orders.length > 5) {
-            setOrderCount(`${orders.length.toLocaleString()}+`);
-          }
+          const baseCount = 1000;
+          const currentCount = orders && Array.isArray(orders) ? orders.length : 0;
+          setOrderCount(`${(baseCount + currentCount).toLocaleString()}+`);
         }
       } catch (err) {
         console.error("Home stats fetch failed:", err);

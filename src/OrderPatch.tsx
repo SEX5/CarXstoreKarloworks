@@ -5,12 +5,16 @@ import { formatResourceQuantity } from "./utils";
 
 interface OrderPatchProps {
   onNavigate: (view: string, arg?: string) => void;
+  viewParam?: any;
 }
 
-export default function OrderPatch({ onNavigate }: OrderPatchProps) {
+import PaymentWizard from "./components/PaymentWizard";
+
+export default function OrderPatch({ onNavigate, viewParam }: OrderPatchProps) {
   const [carxEmail, setCarxEmail] = useState("");
   const [carxPassword, setCarxPassword] = useState("");
   const [selectedPatchType, setSelectedPatchType] = useState("ban_safe_t1");
+  const [selectedBackupPath, setSelectedBackupPath] = useState<string | null>(null);
   const [isBanSafeDropdownOpen, setIsBanSafeDropdownOpen] = useState(false);
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,48 +44,27 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
   const [carId, setCarId] = useState("");
 
   const [services, setServices] = useState<any[]>([]);
-  const [gcashSettings, setGcashSettings] = useState({
-    gcash_number: "09123963204",
-    gcash_name: "KA•L A.",
-    gcash_qr_url: "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png"
-  });
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // States for GCash payment Modal in wizard
+  // Payment Wizard State
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
-  const [modalStep, setModalStep] = useState<"pay_instructions" | "upload_receipt" | "order_complete">("pay_instructions");
-  const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const [verifyingReceipt, setVerifyingReceipt] = useState(false);
   const [verifyingCredentials, setVerifyingCredentials] = useState(false);
-  const [ocrError, setOcrError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [completedOrderId, setCompletedOrderId] = useState("");
-  const [deliveredRefNumber, setDeliveredRefNumber] = useState("");
 
   // Load Pricing and settings configuration live on mount
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        // Load Settings
-        const settingsResp = await fetch("/api/settings");
-        if (settingsResp.ok) {
-          const s = await settingsResp.json();
-          setGcashSettings({
-            gcash_number: s.gcash_number || "09123963204",
-            gcash_name: s.gcash_name || "KA•L A.",
-            gcash_qr_url: s.gcash_qr_url || "https://pub-c2a2b0c3f0b2.r2.dev/gcash_qr_sample.png"
-          });
-        }
-
         // Load Pricing
         const pricingResp = await fetch("/api/patch-pricing");
         if (pricingResp.ok) {
-          const p = await pricingResp.json();
-          setServices(p);
+          let p = await pricingResp.json();
+          
+          // Filter out restore service from regular patcher
+          const filteredServices = p.filter((s: any) => s.patch_type !== "restore");
+          setServices(filteredServices);
 
           // Synchronize banSafeTiers prices and labels from DB
           setBanSafeTiers(prev => prev.map(tier => {
@@ -96,8 +79,8 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
             return tier;
           }));
 
-          if (p.length > 0) {
-            setSelectedPatchType(p[0].patch_type);
+          if (filteredServices.length > 0) {
+            setSelectedPatchType(filteredServices[0].patch_type);
           }
         }
 
@@ -194,6 +177,11 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
       return;
     }
 
+    if (selectedPatchType === "restore" && !selectedBackupPath) {
+      setError("Restore mode is now managed directly in the Cloud Vault dashboard.");
+      return;
+    }
+
     // NEW: Live Credential Verification Step
     try {
       setVerifyingCredentials(true);
@@ -210,9 +198,6 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
 
       // Success! Proceed to payment
       setIsPayModalOpen(true);
-      setModalStep("pay_instructions");
-      setReceiptBase64(null);
-      setOcrError(null);
     } catch (err: any) {
       setError(err.message || "Failed to verify game account sync details.");
       // Scroll to error
@@ -222,142 +207,15 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
     }
   };
 
-  const handleClosePaymentWizard = () => {
-    setIsPayModalOpen(false);
-    setReceiptBase64(null);
-    setOcrError(null);
-  };
-
-  // Drag and drop receipt mechanics
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
+  const currentCustomDetails = () => {
+    if (selectedPatchType === "custom_resources") return { silver: Number(customSilver), gold: Number(customGold), xp: 0 };
+    if (selectedPatchType.startsWith("ban_safe_")) {
+      const tier = banSafeTiers.find(t => t.id === selectedPatchType);
+      return { silver: tier?.silver || 0, gold: tier?.gold || 0, xp: 0 };
     }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-    }
-  };
-
-  const processFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setOcrError("Please upload a valid receipt image (PNG, JPEG).");
-      return;
-    }
-    setOcrError(null);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setReceiptBase64(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Submit OCR GCash Analyzer in modal
-  const submitGCashVerify = async () => {
-    if (!isFormValid) {
-      setOcrError("Please enter a valid email and password before submitting.");
-      return;
-    }
-    
-    if (!receiptBase64) {
-      setOcrError("Please upload or drag your GCash screenshot verification receipt.");
-      return;
-    }
-
-    try {
-      setVerifyingReceipt(true);
-      setOcrError(null);
-
-      // 1. Send receipt for OCR checking
-      const analyzeResp = await fetch("/api/analyze-receipt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          base64Image: receiptBase64,
-          expectedAmount: currentService.price
-        })
-      });
-
-      const ocrResult = await analyzeResp.json();
-      if (!analyzeResp.ok || !ocrResult.success) {
-        throw new Error(ocrResult.error || "Failed to parse screenshot details. Recheck resolution parameters.");
-      }
-
-      // 2. Verified successfully. Prepare order custom details configuration
-      let customConfig: any = {};
-      
-      if (selectedPatchType === "custom_resources") {
-        customConfig = { silver: Number(customSilver), gold: Number(customGold), xp: 0 };
-      } else if (selectedPatchType === "ban_safe_t1") {
-        customConfig = { silver: 1600000, gold: 1750, xp: 0 };
-      } else if (selectedPatchType === "ban_safe_t2") {
-        customConfig = { silver: 2500000, gold: 2900, xp: 0 };
-      } else if (selectedPatchType === "ban_safe_t3") {
-        customConfig = { silver: 4000000, gold: 4000, xp: 0 };
-      } else if (selectedPatchType === "ban_safe_t4") {
-        customConfig = { silver: 6000000, gold: 6000, xp: 0 };
-      } else if (selectedPatchType === "ban_safe_t5") {
-        customConfig = { silver: 8000000, gold: 8000, xp: 0 };
-      } else if (selectedPatchType === "ban_safe_t6") {
-        customConfig = { silver: 10000000, gold: 10000, xp: 0 };
-      } else if (selectedPatchType === "max_nitro" || selectedPatchType === "inject_car") {
-        customConfig = { car_id: carId };
-      }
-
-      // Create patch order in DB
-      const orderResp = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          order_type: "patch",
-          customer_email: carxEmail,
-          carx_email: carxEmail,
-          carx_password: carxPassword,
-          patch_type: selectedPatchType,
-          patch_label: currentService.label,
-          custom_details: customConfig,
-          amount_paid: currentService.price,
-          gcash_ref_number: ocrResult.data.reference_number,
-          gcash_receipt_data: ocrResult.data,
-          status: "paid" // Automatically trigger injection by setting to 'paid'
-        })
-      });
-
-      const orderResult = await orderResp.json();
-      if (!orderResp.ok || !orderResult.success) {
-        throw new Error(orderResult.error || "Unable to register order target. System DB offline.");
-      }
-
-      setCompletedOrderId(orderResult.order.order_id);
-      setDeliveredRefNumber(ocrResult.data.reference_number);
-      setModalStep("order_complete");
-
-    } catch (err: any) {
-      setOcrError(err.message || "Failed validating payment details.");
-    } finally {
-      setVerifyingReceipt(false);
-    }
-  };
-
-  const handleCopyText = (txt: string) => {
-    navigator.clipboard.writeText(txt);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (selectedPatchType === "max_nitro" || selectedPatchType === "inject_car") return { car_id: carId };
+    if (selectedPatchType === "restore") return { backupPath: selectedBackupPath };
+    return {};
   };
 
   return (
@@ -500,6 +358,26 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
                     </button>
                   ))}
                 </div>
+
+                {/* Restore Meta Display */}
+                {selectedPatchType === "restore" && selectedBackupPath && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-4 bg-[#FFD700]/5 border border-[#FFD700]/30 rounded-sm space-y-2"
+                  >
+                    <div className="flex justify-between items-center">
+                       <span className="text-[10px] font-mono font-black text-[#FFD700] uppercase tracking-widest leading-none">TARGET SNAPSHOT LOADED</span>
+                       <ShieldCheck className="w-4 h-4 text-[#FFD700]" />
+                    </div>
+                    <div className="font-mono text-[9px] text-zinc-400 truncate">
+                       DISK_PATH: {selectedBackupPath}
+                    </div>
+                    <p className="text-[9px] text-zinc-500 leading-relaxed italic">
+                      Proceeding will inject the resources from this specific cloud identity into the destination account provided above.
+                    </p>
+                  </motion.div>
+                )}
 
                 {/* NESTED BAN-SAFE SELECTION SUB-MENU */}
                 <AnimatePresence>
@@ -758,256 +636,20 @@ export default function OrderPatch({ onNavigate }: OrderPatchProps) {
       )}
 
       {/* GCash Payment wizard modal */}
-      <AnimatePresence>
-        {isPayModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={verifyingReceipt ? undefined : handleClosePaymentWizard}
-              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-            />
-
-            {/* Modal Body */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 12 }}
-              className="relative w-full max-w-lg rounded bg-black border border-zinc-800 p-6 md:p-8"
-              id="patch-payment-dashboard"
-            >
-              <div className="flex justify-between items-start mb-6 border-b border-zinc-900 pb-4">
-                <div>
-                  <span className="font-mono text-[9px] font-bold text-gray-400 uppercase tracking-wider block">
-                    CUSTOM INJECTOR PLATFORM
-                  </span>
-                  <h3 className="font-display font-black italic uppercase text-lg text-white">
-                    {modalStep === "order_complete" ? "QUEUE REGISTRATION COMPLETE" : "GCASH DEPOSIT VERIFICATION"}
-                  </h3>
-                </div>
-                {modalStep !== "order_complete" && (
-                  <button
-                    onClick={handleClosePaymentWizard}
-                    className="p-1 px-2.5 rounded bg-zinc-950 border border-zinc-900 text-zinc-500 hover:text-white font-mono text-xs cursor-pointer"
-                  >
-                    CLOSE
-                  </button>
-                )}
-              </div>
-
-              {/* STEP 1: PAYMENT INSTRUCTIONS */}
-              {modalStep === "pay_instructions" && (
-                <div className="space-y-6">
-                  <div className="bg-zinc-950 border border-zinc-900 rounded p-4 text-[11px] leading-relaxed text-zinc-400 space-y-1.5">
-                    <p className="font-bold text-[#FFD700] text-xs font-mono uppercase">MANUAL TRANSFER FLOW</p>
-                    <p>1. Open GCash wallet app and Express Send (or scan the QR Code).</p>
-                    <p>2. Complete a payment transfer of exactly <strong className="text-white">₱{Number(currentService.price).toFixed(2)} PHP</strong> to the recipient address.</p>
-                    <p>3. Take a screenshot of the successful transfer receipt page for verification.</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 items-center bg-zinc-950 p-4 rounded border border-zinc-900">
-                    <div className="space-y-2">
-                      <span className="block text-[9px] font-mono text-zinc-600 font-bold uppercase text-left">GCash Receiver</span>
-                      <div className="p-2 bg-black text-white font-mono text-sm rounded border border-zinc-900 flex justify-between items-center">
-                        <div className="flex flex-col text-left">
-                          <span className="text-[8px] text-zinc-600 font-bold uppercase truncate">Name: {gcashSettings.gcash_name}</span>
-                          <span>{gcashSettings.gcash_number}</span>
-                        </div>
-                        <button
-                          onClick={() => handleCopyText(gcashSettings.gcash_number)}
-                          className="text-[#FFD700] hover:text-white text-[9px]"
-                        >
-                          COPY
-                        </button>
-                      </div>
-                      <span className="block text-[8px] font-mono text-[#FF3333] font-bold text-left">* AMOUNT TO PAY: ₱{Number(currentService.price).toFixed(2)}</span>
-                    </div>
-
-                    <div className="mx-auto border border-zinc-850 p-1 bg-white rounded-sm">
-                      {gcashSettings.gcash_qr_url ? (
-                        <img
-                          src={gcashSettings.gcash_qr_url}
-                          alt="GCash QR Code"
-                          className="w-24 h-24 object-contain"
-                        />
-                      ) : (
-                        <div className="w-24 h-24 bg-gray-200 flex items-center justify-center text-black font-semibold text-[9px]">
-                          NO QR CODE
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {copied && (
-                    <p className="text-center text-emerald-400 text-[10px] font-mono font-bold">✓ Reference copied successfully.</p>
-                  )}
-
-                  <div className="flex gap-4">
-                    <button
-                      onClick={handleClosePaymentWizard}
-                      className="w-1/2 py-2.5 bg-zinc-950 hover:bg-[#111] text-zinc-500 uppercase border border-zinc-900 font-mono text-xs text-center"
-                    >
-                      ABORT
-                    </button>
-                    
-                    <button
-                      onClick={() => setModalStep("upload_receipt")}
-                      className="w-1/2 py-2.5 bg-[#FFD700] hover:bg-white text-black font-black uppercase tracking-wider font-mono text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <span>I HAVE PAID</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-black" />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2: UPLOAD & VERIFY */}
-              {modalStep === "upload_receipt" && (
-                <div className="space-y-6">
-                  <div className="text-center font-mono">
-                    <span className="text-[10px] text-[#FFD700] font-bold tracking-widest uppercase block mb-3">
-                      UPLOAD screenshot OF THE PAYSLIP
-                    </span>
-
-                    <div
-                      onDragEnter={handleDrag}
-                      onDragOver={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDrop={handleDrop}
-                      className={`border-2 border-dashed rounded p-6 text-center cursor-pointer transition-colors ${
-                        dragActive ? "border-[#FFD700] bg-[#FFD700]/5" : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        id="patch-receipt-file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleFileChange}
-                      />
-                      <label htmlFor="patch-receipt-file" className="cursor-pointer block space-y-2">
-                        <UploadCloud className="w-8 h-8 text-zinc-505 text-zinc-500 mx-auto" />
-                        <p className="text-zinc-300 font-bold text-xs uppercase font-mono">
-                          Drag / Select Receipt Screenshot
-                        </p>
-                        <p className="text-[10px] text-zinc-500">
-                          Supports JPG, PNG up to 20MB
-                        </p>
-                      </label>
-                    </div>
-                  </div>
-
-                  {receiptBase64 && (
-                    <div className="p-3 bg-zinc-950 border border-zinc-900 rounded flex items-center justify-between font-mono text-[11px] text-zinc-400">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={receiptBase64}
-                          alt="Receipt Preview"
-                          className="w-10 h-14 object-cover border border-zinc-800 rounded"
-                        />
-                        <span>GCash_Receipt_Report.png</span>
-                      </div>
-                      <button
-                        onClick={() => setReceiptBase64(null)}
-                        className="text-[#FF3333] hover:text-white font-bold uppercase text-[9px]"
-                      >
-                        REMOVE
-                      </button>
-                    </div>
-                  )}
-
-                  {ocrError && (
-                    <p className="text-xs text-[#FF3333] font-mono leading-relaxed bg-[#FF3333]/5 border border-[#FF3333]/15 p-2 rounded">
-                      ⚠ {ocrError}
-                    </p>
-                  )}
-
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => setModalStep("pay_instructions")}
-                      className="w-1/2 py-2.5 bg-zinc-950 text-zinc-500 hover:text-white font-mono text-xs uppercase border border-zinc-900"
-                    >
-                      BACK
-                    </button>
-                    
-                    <button
-                      onClick={submitGCashVerify}
-                      disabled={!receiptBase64 || verifyingReceipt || !isFormValid}
-                      className={`w-1/2 py-2.5 font-black uppercase tracking-wider font-mono text-xs flex items-center justify-center gap-1 transition-colors ${
-                        (!receiptBase64 || verifyingReceipt || !isFormValid)
-                          ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                          : "bg-[#FFD700] hover:bg-white text-black cursor-pointer"
-                      }`}
-                    >
-                      {verifyingReceipt ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
-                          <span>AI OCR READING...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>SEND RECEIPT</span>
-                          <ShieldCheck className="w-3.5 h-3.5 text-black" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 3: QUEUE COMPLETE */}
-              {modalStep === "order_complete" && (
-                <div className="space-y-6" id="patch-delivery-success">
-                  <div className="text-center space-y-2">
-                    <span className="inline-flex p-3 bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 rounded-full animate-bounce mb-2">
-                      <ShieldCheck className="w-6 h-6 text-emerald-400" />
-                    </span>
-                    <h3 className="text-lg font-black italic uppercase text-white tracking-widest font-mono text-center">
-                      PATCH INJECTION SEQUENCE COMPLETE ✓
-                    </h3>
-                    <p className="text-zinc-500 text-xs leading-relaxed max-w-sm mx-auto">
-                      Your GCash voucher was verified by AI, and the injection sequence has been successfully initialized for tracking ID: <strong>{completedOrderId}</strong>.
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-950 border border-zinc-900 p-4 rounded leading-relaxed text-zinc-400 text-xs text-left space-y-1.5 font-mono">
-                    <p className="text-emerald-400 font-bold uppercase text-[10px]">INJECTOR STATUS REPORT:</p>
-                    <p>&gt; service key: <span className="text-[#FFD700]">{deliveredRefNumber}</span></p>
-                    <p>&gt; target account: {carxEmail}</p>
-                    <p>&gt; modification type: {currentService.label}</p>
-                    <p>&gt; internal id: {completedOrderId}</p>
-                    <p>&gt; progression: <span className="text-emerald-400 font-bold">"completed"</span></p>
-                    <p className="text-[10px] text-emerald-400/60 italic font-sans lowercase mt-3 leading-tight">
-                      {selectedPatchType === "unlock_real_estate" 
-                        ? "* All Real Estate houses have been successfully injected and unlocked on your active profile. Restart your app to see changes."
-                        : selectedPatchType === "unlock_customs"
-                        ? "* All Banners, Avatars, and Frames have been successfully injected and unlocked on your active profile. Restart your app to see changes."
-                        : "* Automated patch successful. Resources have been synced with the game database. Restart your app to see changes."
-                      }
-                    </p>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => {
-                        setIsPayModalOpen(false);
-                        onNavigate("order_status", completedOrderId);
-                      }}
-                      className="w-full py-3 bg-[#FFD700] hover:bg-white text-black font-black uppercase tracking-wider font-mono text-xs text-center cursor-pointer"
-                    >
-                      TRACK ORDER IN REAL-TIME
-                    </button>
-                  </div>
-                </div>
-              )}
-
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <PaymentWizard
+        isOpen={isPayModalOpen}
+        onClose={() => setIsPayModalOpen(false)}
+        serviceLabel={currentService.label}
+        servicePrice={currentService.price}
+        carxEmail={carxEmail}
+        carxPassword={carxPassword}
+        patchType={selectedPatchType}
+        customDetails={currentCustomDetails()}
+        onComplete={(orderId) => {
+          setCompletedOrderId(orderId);
+        }}
+        onNavigate={onNavigate}
+      />
 
     </div>
   );

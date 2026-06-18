@@ -104,54 +104,80 @@ export default function SuccessPage({ onNavigate }: SuccessPageProps) {
               <CheckCircle2 className="w-6 h-6" />
             </span>
             <h1 className="text-2xl md:text-3xl font-black italic tracking-tighter text-white uppercase">
-              PAYMENT APPROVED!
+              {invoice.productType === "patch" 
+                ? (invoice.title.toLowerCase().includes("restoration") ? "RESTORATION COMPLETE" : "PATCH INJECTION COMPLETE")
+                : "RESOURCE PROVISIONING COMPLETE"}
             </h1>
             <p className="text-gray-500 text-[9px] font-mono uppercase mt-1 tracking-wider text-[#FFD700] font-bold">
-              Automatic resource delivery triggered
+              {invoice.productType === "patch" 
+                ? (invoice.title.toLowerCase().includes("restoration") ? "IDENTITY RESTORED SUCCESSFULLY ✓" : "PATCH INJECTION SEQUENCE COMPLETE ✓") 
+                : "ALL RESOURCES DELIVERED SUCCESSFULLY ✓"}
             </p>
           </div>
 
           {/* Invoice Summary Card */}
-          <div className="bg-black border border-[#222] rounded p-5 mb-8 space-y-3.5 font-sans relative overflow-hidden">
-            {/* Added High Contrast Tracking ID */}
-            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded shadow-[0_0_15px_rgba(16,185,129,0.05)]">
-               <div className="flex justify-between items-center mb-1">
-                 <span className="text-emerald-400 font-mono font-bold text-[9px] uppercase tracking-widest">PROMINENT TRACKING ID</span>
-                 <span className="text-[8px] bg-emerald-400 text-black px-1.5 py-0.5 rounded font-black uppercase">RECOVERY KEY</span>
+          {invoice.productType === "patch" ? (
+            <div className="bg-black border border-emerald-500/20 p-5 rounded font-mono text-[10px] space-y-1 mb-8 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-2 opacity-5">
+                 <ShieldCheck className="w-16 h-16 text-emerald-400" />
                </div>
-               <div className="flex items-center justify-between">
-                 <strong className="text-white text-xl font-mono font-black tracking-widest uppercase">{invoice.orderId || invoice.referenceNumber || "ORD-XXXXX"}</strong>
-                 <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(invoice.orderId || invoice.referenceNumber || "");
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="bg-emerald-500 text-black p-1 px-2.5 rounded font-black text-[9px] uppercase tracking-widest hover:bg-white transition-all"
-                 >
-                  COPY
-                 </button>
+               <h3 className="text-emerald-400 font-bold uppercase tracking-widest mb-3 border-b border-emerald-500/10 pb-2 flex items-center gap-2">
+                 <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+                 INJECTOR STATUS REPORT:
+               </h3>
+               <div className="space-y-1.5">
+                 <p><span className="text-emerald-400/60 uppercase">{">"} service key:</span> <span className="text-white">{invoice.referenceNumber || "Verified"}</span></p>
+                 <p><span className="text-emerald-400/60 uppercase">{">"} target account:</span> <span className="text-white">{invoice.customerEmail}</span></p>
+                 <p><span className="text-emerald-400/60 uppercase">{">"} modification type:</span> <span className="text-white">{invoice.title}</span></p>
+                 <p><span className="text-emerald-400/60 uppercase">{">"} internal id:</span> <span className="text-white">{invoice.orderId}</span></p>
+                 <p><span className="text-emerald-400/60 uppercase">{">"} progression:</span> <span className="text-[#00FF00] font-black italic">"completed"</span></p>
                </div>
-               <p className="text-[8px] text-zinc-500 mt-1 italic leading-tight uppercase font-mono">
-                 * explicitly labeled for use in the Recovery Center
+               <p className="text-[9px] text-[#00FF00]/60 italic mt-4 leading-tight">
+                 * automated patch successful. resources have been synced with the game database. restart your app to see changes.
                </p>
             </div>
+          ) : (
+            <div className="bg-black border border-[#222] rounded p-5 mb-8 space-y-3.5 font-sans relative overflow-hidden">
+              {/* Added High Contrast Tracking ID */}
+              <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded shadow-[0_0_15px_rgba(16,185,129,0.05)]">
+                 <div className="flex justify-between items-center mb-1">
+                   <span className="text-emerald-400 font-mono font-bold text-[9px] uppercase tracking-widest">PROMINENT TRACKING ID</span>
+                   <span className="text-[8px] bg-emerald-400 text-black px-1.5 py-0.5 rounded font-black uppercase">RECOVERY KEY</span>
+                 </div>
+                 <div className="flex items-center justify-between">
+                   <strong className="text-white text-xl font-mono font-black tracking-widest uppercase">{invoice.orderId || invoice.referenceNumber || "ORD-XXXXX"}</strong>
+                   <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(invoice.orderId || invoice.referenceNumber || "");
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="bg-emerald-500 text-black p-1 px-2.5 rounded font-black text-[9px] uppercase tracking-widest hover:bg-white transition-all"
+                   >
+                    COPY
+                   </button>
+                 </div>
+                 <p className="text-[8px] text-zinc-500 mt-1 italic leading-tight uppercase font-mono">
+                   * explicitly labeled for use in the Recovery Center
+                 </p>
+              </div>
 
-            <div className="flex justify-between text-xs text-gray-400">
-              <span className="uppercase tracking-wider text-[9px] font-bold text-gray-500">Customer Email:</span>
-              <strong className="text-white">{invoice.customerEmail}</strong>
-            </div>
+              <div className="flex justify-between text-xs text-gray-400">
+                <span className="uppercase tracking-wider text-[9px] font-bold text-gray-500">Customer Email:</span>
+                <strong className="text-white">{invoice.customerEmail}</strong>
+              </div>
 
-            <div className="flex justify-between text-xs text-gray-400 border-t border-[#1A1A1A] pt-3">
-              <span className="uppercase tracking-wider text-[9px] font-bold text-gray-500">Item Description:</span>
-              <strong className="text-gray-300 text-right max-w-[200px] truncate">{invoice.title}</strong>
-            </div>
+              <div className="flex justify-between text-xs text-gray-400 border-t border-[#1A1A1A] pt-3">
+                <span className="uppercase tracking-wider text-[9px] font-bold text-gray-500">Item Description:</span>
+                <strong className="text-gray-300 text-right max-w-[200px] truncate">{invoice.title}</strong>
+              </div>
 
-            <div className="flex justify-between text-xs text-[#FFD700] border-t border-[#1A1A1A] pt-3 font-semibold">
-              <span className="uppercase tracking-wider text-[9px] font-bold text-gray-500">Charged Total:</span>
-              <strong className="text-base text-white font-mono">${invoice.price}</strong>
+              <div className="flex justify-between text-xs text-[#FFD700] border-t border-[#1A1A1A] pt-3 font-semibold">
+                <span className="uppercase tracking-wider text-[9px] font-bold text-gray-500">Charged Total:</span>
+                <strong className="text-base text-white font-mono">${invoice.price}</strong>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Core Access Box (Conditional for Account delivery) */}
           {invoice.productType === "account" && invoice.credentials ? (
@@ -205,12 +231,15 @@ export default function SuccessPage({ onNavigate }: SuccessPageProps) {
             </div>
           ) : (
             /* Modification patch acknowledgment notice */
-            <div className="bg-indigo-950/5 border border-indigo-500/15 p-5 rounded space-y-2 mb-8">
-              <h3 className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                🛡 BOT PIPELINE STATUS: paid & queued
+            <div className="bg-emerald-500/5 border border-emerald-500/15 p-5 rounded space-y-2 mb-8">
+              <h3 className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                🛡 BOT PIPELINE STATUS: COMPLETED & SYNCED
               </h3>
               <p className="text-gray-400 text-xs leading-relaxed font-sans">
-                {invoice.message}
+                {invoice.title.toLowerCase().includes("restoration") 
+                  ? "Your account identity has been restored. You can now login to your account profile."
+                  : "Automatic injection successful. Your account has been updated and synchronized with our secure database."
+                }
               </p>
             </div>
           )}

@@ -272,7 +272,11 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
       setModalStep("delivery_panel");
 
     } catch (err: any) {
-      setOcrError(err.message || "Network exception parsing. Please retry receipt submission.");
+      if (err.message && (err.message.toLowerCase().includes("fetch") || err.message.toLowerCase().includes("network"))) {
+        setOcrError("INTERRUPT DETECTED: Scanning failed due to a network timeout. Please click 'TRY AGAIN' to re-verify.");
+      } else {
+        setOcrError(err.message || "Network exception parsing. Please retry receipt submission.");
+      }
       setModalStep("upload_receipt"); // Safely revert to upload stage if validation fails
     } finally {
       setVerifyingPayment(false);
@@ -798,7 +802,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                         </>
                       ) : (
                         <>
-                          <span>VERIFY RECEIPT</span>
+                          <span>{ocrError ? "TRY AGAIN" : "VERIFY RECEIPT"}</span>
                           <ShieldCheck className="w-3.5 h-3.5 text-black" />
                         </>
                       )}

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Shield, Zap, Compass, Flame, ArrowRight, Star, HeartHandshake, HelpCircle, HardDrive, ToggleLeft, Loader2 } from "lucide-react";
+import { Shield, Zap, Compass, Flame, ArrowRight, Star, HeartHandshake, HelpCircle, HardDrive, ToggleLeft, Loader2, Cloud, UploadCloud, Facebook, Users } from "lucide-react";
 import { motion } from "motion/react";
+
+const DEV_AVATAR_URL = "https://kqybljxyobhlakrxcrld.supabase.co/storage/v1/object/public/Profile/FB_IMG_1781767207427.jpg";
 
 interface HomeProps {
   onNavigate: (view: string, arg?: string) => void;
@@ -97,6 +99,62 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
         </div>
       )}
 
+      {/* Community Connections */}
+      <div className="grid md:grid-cols-2 gap-6 mb-10">
+        <a 
+          href="https://www.facebook.com/share/1Cc8cdwQ9F/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-6 rounded-lg bg-[#0F0F0F] border border-[#0084FF]/20 hover:border-[#0084FF] transition-all flex items-center gap-5 group cursor-pointer"
+          id="link-dev-fb"
+        >
+          <div className="relative shrink-0">
+            <img 
+              src={DEV_AVATAR_URL} 
+              alt="Karl Abalunan" 
+              referrerPolicy="no-referrer"
+              className="w-16 h-16 rounded-full object-cover border-2 border-[#0084FF]/40 group-hover:border-[#0084FF] transition-all"
+            />
+            <div className="absolute -bottom-1 -right-1 bg-[#0084FF] p-1 rounded-full border border-[#0F0F0F]">
+              <Facebook className="w-3 h-3 text-white fill-current" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight leading-none">Karl Abalunan</h3>
+              <ArrowRight className="w-3 h-3 text-zinc-600 group-hover:translate-x-1 group-hover:text-[#0084FF] transition-all" />
+            </div>
+            <span className="inline-block px-1.5 py-0.5 bg-[#0084FF]/10 text-[#0084FF] border border-[#0084FF]/20 text-[8px] font-mono font-bold uppercase rounded-sm mb-1.5">
+              OFFICIAL DEVELOPER
+            </span>
+            <p className="text-zinc-400 text-[10px] leading-relaxed font-sans uppercase tracking-wider font-semibold block">
+              Follow Karl Abalunan for direct dev updates
+            </p>
+          </div>
+        </a>
+
+        <a 
+          href="https://www.facebook.com/share/g/1DPEhA9sbK/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-6 rounded-lg bg-[#0F0F0F] border border-[#0084FF]/20 hover:border-[#0084FF] transition-all flex items-center gap-5 group cursor-pointer"
+          id="link-group-fb"
+        >
+          <div className="p-4 bg-[#0084FF]/10 border border-[#0084FF]/20 text-[#0084FF] rounded-sm group-hover:scale-110 transition-transform">
+            <Users className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight">Community Group</h3>
+              <ArrowRight className="w-3 h-3 text-zinc-600 group-hover:translate-x-1 group-hover:text-[#0084FF] transition-all" />
+            </div>
+            <p className="text-zinc-500 text-[11px] leading-relaxed font-sans uppercase tracking-wider font-semibold">
+              Join CarX Street Philippines (MOD/GRIND)
+            </p>
+          </div>
+        </a>
+      </div>
+
       {/* Hero Section */}
       <div className="relative rounded-xl overflow-hidden bg-gradient-to-r from-[#0F0F0F] to-[#1A1A1A] border border-[#222] p-8 md:p-14 mb-14 shadow-2xl">
         {/* Decorative Grid Lines / Overlay */}
@@ -160,6 +218,15 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
                 </button>
 
                 <button
+                  onClick={() => onNavigate("vault")}
+                  className="group relative cursor-pointer px-6 py-3.5 bg-[#FFD700]/10 border border-[#FFD700]/30 hover:bg-[#FFD700] hover:text-black text-[#FFD700] font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
+                  id="btn-nav-vault"
+                >
+                  <span>Backup & Restore</span>
+                  <Cloud className="w-4 h-4" />
+                </button>
+
+                <button
                   onClick={() => onNavigate("recovery")}
                   className="group relative cursor-pointer px-6 py-3.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-500 text-zinc-400 hover:text-white font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
                   id="btn-nav-recovery"
@@ -200,60 +267,58 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
         </div>
       </div>
 
-      {/* Feature Highlights Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-14" id="features-highlights">
-        {/* Card 1 */}
-        <div className="p-6 rounded-lg bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col items-start gap-4 group">
-          <div className="p-3 bg-[#FFD700]/10 border border-[#FFD700]/20 text-[#FFD700] rounded-sm">
-            <Zap className="w-5 h-5 animate-pulse" />
+        {/* Feature Highlights Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-14" id="features-highlights">
+          {/* VIRTUAL CLOUD DISK - NEW HIGHLIGHT */}
+          <div 
+            onClick={() => onNavigate("vault")}
+            className="p-6 rounded-lg bg-[#0F0F0F] border border-[#FFD700]/30 hover:border-[#FFD700] transition-all flex flex-col items-start gap-4 group cursor-pointer relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+               <UploadCloud className="w-20 h-20 text-white" />
+            </div>
+            <div className="p-3 bg-[#FFD700]/10 border border-[#FFD700]/20 text-[#FFD700] rounded-sm">
+              <Cloud className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight">Backup & Restore</h3>
+                <span className="text-[8px] font-mono bg-emerald-500 text-black px-1 rounded font-black">FREE SYNC</span>
+              </div>
+              <p className="text-zinc-400 text-xs leading-relaxed font-sans">
+                Securely store profile snapshots of your progress. Move resources across accounts or save a backup before applying experimental patches.
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">Fast Delivery</h3>
-            <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-              Credentials show up right on your screen automatically once paid. Real-time automatic injection is successfully applied in seconds.
-            </p>
+
+          {/* Card 1 */}
+          <div className="p-6 rounded-lg bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col items-start gap-4 group">
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-sm">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">Safe & Tested</h3>
+              <p className="text-zinc-400 text-xs leading-relaxed font-sans">
+                All injection packages utilize secure file mirroring structures. Banned bypass tunnels have 99.8% safe rating indexes.
+              </p>
+            </div>
+          </div>
+          
+          {/* Card 2 */}
+          <div className="p-6 rounded-lg bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col items-start gap-4 group">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-sm">
+              <Star className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">GCash Analysis</h3>
+              <p className="text-zinc-400 text-xs leading-relaxed font-sans">
+                Send GCash manually, upload your receipt block, and let our Gemini AI verify transaction hashes in real-time.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Card 2 */}
-        <div className="p-6 rounded-lg bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col items-start gap-4 group">
-          <div className="p-3 bg-red-655 bg-[#FF3333]/10 border border-[#FF3333]/20 text-[#FF3333] rounded-sm">
-            <Shield className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">Safe & Tested</h3>
-            <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-              All injection packages utilize secure file mirroring structures. Banned bypass tunnels have 99.8% safe rating indexes.
-            </p>
-          </div>
-        </div>
 
-        {/* Card 3 */}
-        <div className="p-6 rounded-lg bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col items-start gap-4 group">
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-sm">
-            <Star className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">GCash Payment</h3>
-            <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-              Send GCash manually, upload your receipt block, and let our Gemini AI verify transaction hashes in real-time.
-            </p>
-          </div>
-        </div>
-
-        {/* Card 4 */}
-        <div className="p-6 rounded-lg bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col items-start gap-4 group">
-          <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-sm">
-            <HeartHandshake className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">24/7 Support</h3>
-            <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-              Our support resellers are active 24/7 on instant messaging logs to support you on profile calibrations.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Quick Live Stats / Trust Element */}
       <div className="rounded-lg bg-[#080808] border border-[#1A1A1A] p-8 flex flex-col md:flex-row justify-around items-center gap-8 text-center mb-10">

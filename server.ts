@@ -190,7 +190,8 @@ function getLocalDB() {
         { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
         { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
         { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
-        { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" }
+        { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" },
+        { id: 14, patch_type: "restore", label: "Cloud Snapshot Restoration", price: 50.00, description: "Full Projective Cloning of Cloud Backups" }
       ],
       settings: [
         { key: "gcash_number", value: "09123963204" },
@@ -199,17 +200,26 @@ function getLocalDB() {
         { key: "telegram_link", value: "https://t.me/CarXResellerSupportBot" },
         { key: "is_online", value: "true" },
         { key: "maintenance_mode", value: "false" }
-      ]
+      ],
+      auto_backups: []
     };
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(initialSeed, null, 2), "utf8");
     return initialSeed;
   }
   try {
     const data = fs.readFileSync(DB_FILE_PATH, "utf8");
-    return JSON.parse(data);
+    const db = JSON.parse(data);
+    
+    // Migration: Ensure 'restore' pricing exists
+    if (db.patch_pricing && !db.patch_pricing.find((p: any) => p.patch_type === "restore")) {
+        db.patch_pricing.push({ id: 14, patch_type: "restore", label: "Cloud Snapshot Restoration", price: 50.00, description: "Full Projective Cloning of Cloud Backups" });
+        fs.writeFileSync(DB_FILE_PATH, JSON.stringify(db, null, 2), "utf8");
+    }
+    
+    return db;
   } catch (err) {
     console.error("Local DB read failed parsing, falling back to mock");
-    return { accounts: [], orders: [], patch_pricing: [], settings: [] };
+    return { accounts: [], orders: [], patch_pricing: [], settings: [], auto_backups: [] };
   }
 }
 
@@ -240,6 +250,167 @@ function logSystemError(type: string, message: string, details: any = {}) {
   } catch (err) {
     console.error("Failed to write system log:", err);
   }
+}
+
+// -------------------------------------------------------------
+// CarX Profile Protocol (Direct Sync & Cloning Logic)
+// -------------------------------------------------------------
+
+function decryptCarXPayload(compressedStr: string): any {
+  try {
+    const data = Buffer.from(compressedStr.substring(4), "base64");
+    // [0] is null byte in CarX protocol
+    const decompressed = zlib.gunzipSync(data.subarray(1));
+    return JSON.parse(decompressed.toString());
+  } catch (err: any) {
+    console.error("[PROTOCOL] Decrypt Failed:", err.message);
+    throw new Error("failed to decode profile snapshot");
+  }
+}
+
+function encryptCarXPayload(profile: any): string {
+  const jsonStr = JSON.stringify(profile);
+  const compressed = zlib.gzipSync(Buffer.from(jsonStr));
+  const finalBuffer = Buffer.concat([Buffer.from([0]), compressed]);
+  return "l84l" + finalBuffer.toString("base64");
+}
+
+function validateAndRepairProfile(prof: any) {
+  console.log("[CLONE] Running data integrity validation...");
+  
+  // Fix Location Spawns (Safe house checks)
+  const locId = prof.location_id || "";
+  if (locId && (locId.includes("apartment") || (prof.real_estates && prof.real_estates[locId]))) {
+    const estates = prof.real_estates || {};
+    if (!estates[locId] || !estates[locId].is_bought) {
+      prof.location_id = "gas_station_0";
+      console.log(`[REPAIR] Respawning player at gas_station_0 (missing home: ${locId})`);
+    }
+  }
+
+  // Fix Current Car
+  const carsNode = prof.cars || {};
+  const carItems = carsNode.items || {};
+  const validCarIds = Object.keys(carItems);
+  const currentCar = String(prof.current_car_id || "");
+  
+  if (validCarIds.length > 0 && !carItems[currentCar]) {
+    prof.current_car_id = validCarIds[0];
+    console.log(`[REPAIR] Corrected active car to ${validCarIds[0]}`);
+  }
+
+  return prof;
+}
+
+async function getCarXSession(email: string, password: string) {
+  const deviceId = crypto.createHash("md5").update(email).digest("hex");
+  const authUrl = "https://carx-id-prod.carx-online.com/api/auth";
+  
+  let loginResp = await fetch(`${authUrl}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "User-Agent": "UnityPlayer/6000.0.64f1", "X-Project": "STREET" },
+    body: JSON.stringify({
+      project: "STREET",
+      username: email,
+      password: password,
+      deviceId: deviceId,
+      deviceUniqueId: deviceId
+    })
+  });
+  
+  if (!loginResp.ok) {
+    console.log(`[AUTH] Login failed for ${email}. Attempting auto-registration...`);
+    // Attempt Registration
+    const regResp = await fetch(`${authUrl}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": "UnityPlayer/6000.0.64f1", "X-Project": "STREET" },
+      body: JSON.stringify({
+        project: "STREET",
+        username: email,
+        password: password,
+        deviceId: deviceId,
+        deviceUniqueId: deviceId
+      })
+    });
+    
+    // Pulse verify
+    await fetch(`${authUrl}/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": "UnityPlayer/6000.0.64f1", "X-Project": "STREET" },
+      body: JSON.stringify({ code: "g4a369" })
+    });
+
+    // Retry Login
+    loginResp = await fetch(`${authUrl}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": "UnityPlayer/6000.0.64f1", "X-Project": "STREET" },
+      body: JSON.stringify({
+        project: "STREET",
+        username: email,
+        password: password,
+        deviceId: deviceId,
+        deviceUniqueId: deviceId
+      })
+    });
+  }
+  
+  const loginData: any = await loginResp.json();
+  if (!loginResp.ok) {
+    throw new Error(loginData.d?.message || loginData.message || "CarX Auth Failure");
+  }
+  
+  const token = loginData.d?.token || loginData.token;
+  const carxId = loginData.d?.carxId || loginData.carxId || "0";
+  
+  const headers = {
+    "Authorization": `Bearer ${token}`,
+    "x-token": token,
+    "X-CarX-Id": carxId,
+    "X-Device-Id": deviceId,
+    "User-Agent": "UnityPlayer/6000.0.64f1",
+    "X-Project": "STREET",
+    "Content-Type": "application/json"
+  };
+
+  // Profile verify pulse
+  await fetch(`${authUrl}/verify`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ code: "g4a369" })
+  });
+
+  const syncResp = await fetch("https://street-prod.carx-online.com/str/v1/client/profiles", { headers });
+  const syncData: any = await syncResp.json();
+  
+  const findCompressed = (d: any): any => {
+    if (!d || typeof d !== 'object') return null;
+    if (d.compressed_data) return d;
+    // Handle arrays (matching Python script more closely)
+    if (Array.isArray(d)) {
+      for (const item of d) {
+        const res = findCompressed(item);
+        if (res) return res;
+      }
+    } else {
+      // Handle objects
+      for (const k in d) {
+        const res = findCompressed(d[k]);
+        if (res) return res;
+      }
+    }
+    return null;
+  };
+
+  let container = findCompressed(syncData);
+  
+  if (!container) {
+    // Build empty container for new accounts (cloner logic)
+    container = {
+      compressed_data: encryptCarXPayload({ resources: { soft: { amount: 0 } } })
+    };
+  }
+
+  return { container, headers, deviceId, carxId };
 }
 
 // -------------------------------------------------------------
@@ -300,7 +471,8 @@ async function getPatchPricing(): Promise<any[]> {
     { id: 10, patch_type: "max_level", label: "Max Level Only", price: 150.00, description: "Instantly set account level to max" },
     { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
     { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
-    { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" }
+    { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" },
+    { id: 14, patch_type: "restore", label: "Cloud Snapshot Restoration", price: 50.00, description: "Full Projective Cloning of Cloud Backups" }
   ];
 
   let dbPricing: any[] = [];
@@ -1042,6 +1214,301 @@ app.get("/api/master-catalog", async (req, res) => {
     }
 });
 
+// -------------------------------------------------------------
+// BACKUP & RESTORE UTILITIES
+// -------------------------------------------------------------
+
+// Internal logic for performing a snapshot backup
+async function performBackup(email: string, password: string) {
+    if (!supabaseAdmin) {
+        throw new Error("Cloud Storage (Supabase) is not configured. Backup feature disabled.");
+    }
+
+    console.log(`[BACKUP] Capturing identity snapshot for ${email}...`);
+    
+    // Use direct protocol for full snapshot
+    const session = await getCarXSession(email, password);
+    const { container } = session;
+    const fullProfile = decryptCarXPayload(container.compressed_data);
+    
+    // 2. Prepare for upload
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const safeEmail = email.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    const fileName = `${safeEmail}/${timestamp}_snapshot.json`;
+    
+    // 3. Upload to Supabase Storage
+    const bucketName = "backandrestore";
+    const { error: uploadError } = await supabaseAdmin.storage
+        .from(bucketName)
+        .upload(fileName, JSON.stringify(fullProfile, null, 2), {
+            contentType: "application/json",
+            upsert: true
+        });
+
+    if (uploadError) throw new Error(`Storage error: ${uploadError.message}`);
+
+    // Trigger background cleanup (keeps last 7 snapshots)
+    cleanupBackups(email).catch(e => console.error("[CLEANUP] Error:", e.message));
+
+    return { fileName, timestamp: new Date().toISOString() };
+}
+
+// Keep only the last 7 snapshots for an account to save storage
+async function cleanupBackups(email: string) {
+    if (!supabaseAdmin) return;
+    const bucketName = "backandrestore";
+    const safeEmail = email.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    
+    const { data: files, error } = await supabaseAdmin.storage
+        .from(bucketName)
+        .list(safeEmail, {
+            limit: 50,
+            offset: 0,
+            sortBy: { column: 'name', order: 'desc' }
+        });
+
+    if (error || !files) return;
+
+    // Filter for snapshot files only
+    const snapshots = files.filter(f => f.name.endsWith("_snapshot.json"));
+    
+    if (snapshots.length > 7) {
+        const toDelete = snapshots.slice(7).map(f => `${safeEmail}/${f.name}`);
+        const { error: delError } = await supabaseAdmin.storage.from(bucketName).remove(toDelete);
+        if (!delError) {
+            console.log(`[CLEANUP] Auto-removed ${toDelete.length} outdated snapshots for ${email} (Retention: 7)`);
+        }
+    }
+}
+
+// Create a backup of the current garage profile (Full Snapshot)
+app.post("/api/garage/backup", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required for backup." });
+    }
+
+    try {
+        const result = await performBackup(email, password);
+        res.json({ 
+            success: true, 
+            message: "Identity snapshot successfully captured and stored in cloud.",
+            ...result
+        });
+    } catch (err: any) {
+        console.error("[BACKUP] General error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// -------------------------------------------------------------
+// AUTOMATIC BACKUP SCHEDULER
+// -------------------------------------------------------------
+
+// Toggle auto-backup settings
+app.post("/api/garage/autobackup/setup", async (req, res) => {
+    const { email, password, enabled } = req.body;
+    if (!email || (enabled && !password)) {
+        return res.status(400).json({ error: "Email and password are required to enable auto-backup." });
+    }
+
+    try {
+        const db = getLocalDB();
+        db.auto_backups = db.auto_backups || [];
+        
+        const existingIndex = db.auto_backups.findIndex((b: any) => b.email === email);
+        
+        if (enabled) {
+            const entry = {
+                email,
+                password: encrypt(password), // Encrypt sensitive credentials
+                enabled: true,
+                last_backup: existingIndex >= 0 ? db.auto_backups[existingIndex].last_backup : null,
+                created_at: existingIndex >= 0 ? db.auto_backups[existingIndex].created_at : new Date().toISOString()
+            };
+            
+            if (existingIndex >= 0) {
+                db.auto_backups[existingIndex] = entry;
+            } else {
+                db.auto_backups.push(entry);
+            }
+        } else {
+            if (existingIndex >= 0) {
+                db.auto_backups[existingIndex].enabled = false;
+            }
+        }
+        
+        saveLocalDB(db);
+        res.json({ success: true, message: `Auto-backup ${enabled ? "enabled" : "disabled"} successfully.` });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get auto-backup status
+app.post("/api/garage/autobackup/status", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required." });
+
+    try {
+        const db = getLocalDB();
+        const entry = (db.auto_backups || []).find((b: any) => b.email === email);
+        res.json({ success: true, enabled: entry ? entry.enabled : false, last_backup: entry ? entry.last_backup : null });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Background worker: Runs every 1 hour to check for pending backups (24h interval)
+setInterval(async () => {
+    try {
+        const db = getLocalDB();
+        const now = Date.now();
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        
+        const pending = (db.auto_backups || []).filter((b: any) => {
+            if (!b.enabled) return false;
+            if (!b.last_backup) return true; // Never backed up
+            const lastTime = new Date(b.last_backup).getTime();
+            return (now - lastTime) >= twentyFourHours;
+        });
+
+        if (pending.length > 0) {
+            console.log(`[AUTO-BACKUP] Found ${pending.length} pending automated snapshots...`);
+            
+            for (const task of pending) {
+                try {
+                    const decryptedPass = decrypt(task.password);
+                    await performBackup(task.email, decryptedPass);
+                    
+                    // Update last backup time
+                    const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
+                    if (idx >= 0) {
+                        db.auto_backups[idx].last_backup = new Date().toISOString();
+                    }
+                    console.log(`[AUTO-BACKUP] SUCCESS for ${task.email}`);
+                } catch (err: any) {
+                    console.error(`[AUTO-BACKUP] FAILED for ${task.email}:`, err.message);
+                    
+                    // Critical: if account is banned or credentials rejected, disable the auto-node
+                    if (err.message.toLowerCase().includes("rejected") || err.message.toLowerCase().includes("invalid")) {
+                        const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
+                        if (idx >= 0) {
+                            db.auto_backups[idx].enabled = false;
+                            console.log(`[AUTO-BACKUP] FATAL AUTH ERROR: Disabling automation for ${task.email}`);
+                        }
+                    }
+                }
+            }
+            saveLocalDB(db);
+        }
+    } catch (err: any) {
+        console.error("[AUTO-BACKUP] Worker error:", err.message);
+    }
+}, 3600000); // 1 hour check interval
+
+// List all backups for a specific account
+app.post("/api/garage/backups/list", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required to list backups." });
+
+    try {
+        if (!supabaseAdmin) throw new Error("Cloud Storage not available.");
+
+        const bucketName = "backandrestore";
+        const safeEmail = email.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+
+        const { data, error } = await supabaseAdmin.storage
+            .from(bucketName)
+            .list(safeEmail, {
+                limit: 100,
+                offset: 0,
+                sortBy: { column: "name", order: "desc" }
+            });
+
+        if (error) throw new Error(error.message);
+
+        const backups = (data || []).map((f: any) => ({
+            name: f.name,
+            path: `${safeEmail}/${f.name}`,
+            created_at: f.created_at,
+            size: f.metadata?.size
+        }));
+
+        res.json({ success: true, backups });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Restore a specific backup
+app.post("/api/garage/restore", async (req, res) => {
+    const { email, password, backupPath } = req.body;
+    if (!email || !password || !backupPath) {
+        return res.status(400).json({ error: "Email, password, and backup path are required." });
+    }
+
+    try {
+        if (!supabaseAdmin) throw new Error("Cloud Storage not available.");
+
+        console.log(`[SYNC] [RESTORE] Initializing Full Wipe & Clone Sequence for ${email}: ${backupPath}`);
+        
+        // 1. Download snapshot
+        const bucketName = "backandrestore";
+        const { data: snapshotBlob, error: downloadError } = await supabaseAdmin.storage
+            .from(bucketName)
+            .download(backupPath);
+
+        if (downloadError) throw new Error(`Backup storage access failed: ${downloadError.message}`);
+        const sourceProfile = JSON.parse(await snapshotBlob.text());
+
+        // 2. Get Target session
+        const { container, headers } = await getCarXSession(email, password);
+        const targetProfile = decryptCarXPayload(container.compressed_data);
+
+        // 3. The Cloner Logic: Wipe & Identity Projection
+        console.log(`[SYNC] Wiping target data and projecting source onto ${email}`);
+        
+        const identityData = {
+          profile: targetProfile.profile,
+          location_id: targetProfile.location_id
+        };
+
+        const newProfile = { ...sourceProfile, ...identityData };
+        
+        // 4. Sanitize and Repair
+        const repairedProfile = validateAndRepairProfile(newProfile);
+
+        // 5. Upload to CarX Sync
+        const newPayload = encryptCarXPayload(repairedProfile);
+        const syncBody = {
+          ...container,
+          compressed_data: newPayload,
+          lastSyncTime: Math.floor(Date.now() / 1000)
+        };
+
+        const pushResp = await fetch("https://street-prod.carx-online.com/str/v1/client/profiles", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(syncBody)
+        });
+
+        if (!pushResp.ok) {
+          const pushErr = await pushResp.text();
+          throw new Error(`Cloud Sync Rejected: ${pushErr}`);
+        }
+
+        res.json({ 
+            success: true, 
+            message: "Restore successful. Full identity projection complete."
+        });
+
+    } catch (err: any) {
+        console.error("[RESTORE] Error:", err.message);
+        res.status(500).json({ error: "Restore Failed: " + err.message });
+    }
+});
+
 // Public Accounts list
 app.get("/api/accounts", async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -1587,6 +2054,59 @@ app.post("/api/orders", async (req, res) => {
             if (receiptData.patch_type === "unlock_real_estate") {
                 await injectRealEstateAPI(email, passwordPlain);
                 console.log(`[CARX INJECTION] Real Estate injected successfully.`);
+            }
+
+            if (receiptData.patch_type === "restore") {
+                const backupPath = details.backupPath;
+                if (!backupPath) throw new Error("No backup snapshot path provided for restore.");
+
+                console.log(`[SYNC] [RESTORE] Initializing Full Wipe & Clone Sequence: ${backupPath}`);
+                
+                // 1. Download snapshot
+                const { data: snapshotBlob, error: downloadError } = await supabaseAdmin.storage
+                    .from("backandrestore")
+                    .download(backupPath);
+
+                if (downloadError) throw new Error(`Storage access failed: ${downloadError.message}`);
+                const sourceProfile = JSON.parse(await snapshotBlob.text());
+
+                // 2. Get Target session
+                const { container, headers } = await getCarXSession(email, passwordPlain);
+                const targetProfile = decryptCarXPayload(container.compressed_data);
+
+                // 3. The Cloner Logic: Wipe & Identity Projection
+                console.log(`[SYNC] Wiping target data and projecting source onto ${email}`);
+                
+                const identityData = {
+                  profile: targetProfile.profile,
+                  location_id: targetProfile.location_id
+                };
+
+                const newProfile = { ...sourceProfile, ...identityData };
+                
+                // 4. Sanitize and Repair
+                const repairedProfile = validateAndRepairProfile(newProfile);
+
+                // 5. Upload to CarX Sync
+                const newPayload = encryptCarXPayload(repairedProfile);
+                const syncBody = {
+                  ...container,
+                  compressed_data: newPayload,
+                  lastSyncTime: Math.floor(Date.now() / 1000)
+                };
+
+                const pushResp = await fetch("https://street-prod.carx-online.com/str/v1/client/profiles", {
+                  method: "POST",
+                  headers,
+                  body: JSON.stringify(syncBody)
+                });
+
+                if (!pushResp.ok) {
+                  const pushErr = await pushResp.text();
+                  throw new Error(`Cloud Sync Rejected: ${pushErr}`);
+                }
+
+                console.log(`[SYNC] [RESTORE] Full identity projection complete for ${email}`);
             }
             
             await updateOrderStatus(created.id, "completed");

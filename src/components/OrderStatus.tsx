@@ -217,27 +217,73 @@ export default function OrderStatus({ orderId, onNavigate }: OrderStatusProps) {
 
         {/* Credentials Delivery Panel for Order Type Account */}
         {order.status === "completed" && order.order_type === "account" && (
-          <div className="bg-black border border-emerald-500/10 bg-emerald-500/[0.02] p-5 rounded space-y-2">
-            <span className="block text-[10px] font-mono text-emerald-400 uppercase font-bold tracking-widest flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-emerald-400" />
-              ✓ PACKAGE INJECTION FULFILLED SUCCESSFULLY
-            </span>
-            
-            <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-              Our autopilot bot has completed your package resource adjustments. Injected modifications are now synchronizing on your CarX account: <strong>{order.carx_email || order.delivered_email}</strong>. Log out and log back into your CarX app to prompt files validation and enjoy your resources!
-            </p>
+          <div className="space-y-6">
+            <div className="bg-black border border-emerald-500/10 bg-emerald-500/[0.02] p-5 rounded space-y-2">
+              <span className="block text-[10px] font-mono text-emerald-400 uppercase font-bold tracking-widest flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-emerald-400" />
+                ✓ PACKAGE INJECTION FULFILLED SUCCESSFULLY
+              </span>
+              
+              <p className="text-zinc-400 text-xs leading-relaxed font-sans">
+                Our autopilot bot has completed your package resource adjustments. Injected modifications are now synchronizing on your CarX account: <strong>{order.carx_email || order.delivered_email}</strong>. Log out and log back into your CarX app to prompt files validation and enjoy your resources!
+              </p>
+            </div>
+
+            {/* NEW: Detailed Status Report style as requested */}
+            <div className="bg-black border border-emerald-500/20 p-5 rounded font-mono text-[10px] space-y-1 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2 opacity-5">
+                <ShieldCheck className="w-16 h-16 text-emerald-400" />
+              </div>
+              <h3 className="text-emerald-400 font-bold uppercase tracking-widest mb-3 border-b border-emerald-500/10 pb-2 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+                INJECTOR STATUS REPORT:
+              </h3>
+              <div className="space-y-1.5">
+                <p><span className="text-emerald-400/60 uppercase">{">"} service key:</span> <span className="text-white">{order.gcash_ref_number || "Verified"}</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} target account:</span> <span className="text-white">{order.carx_email || order.customer_email || "N/A"}</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} modification type:</span> <span className="text-white">Resource Package</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} internal id:</span> <span className="text-white">{order.order_id}</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} progression:</span> <span className="text-[#00FF00] font-black italic">"completed"</span></p>
+              </div>
+              <p className="text-[9px] text-[#00FF00]/60 italic mt-4 leading-tight">
+                * automated patch successful. resources have been synced with the game database. restart your app to see changes.
+              </p>
+            </div>
           </div>
         )}
 
         {/* Patch Order Manual processing text */}
         {order.status === "completed" && order.order_type === "patch" && (
-          <div className="bg-black border border-emerald-500/10 bg-emerald-500/[0.02] p-5 rounded space-y-2">
-            <span className="block text-[10px] font-mono text-emerald-400 uppercase font-bold tracking-widest">
-              ✓ PATCH INJECTION FULFILLED SUCCESSFULLY
-            </span>
-            <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-              Our bot has completed resource adjustments. Injected modifications are now synchronizing on: <strong>{order.carx_email}</strong>. Logging out and logging back in on your app will prompt files validation.
-            </p>
+          <div className="space-y-6">
+            <div className="bg-black border border-emerald-500/10 bg-emerald-500/[0.02] p-5 rounded space-y-2">
+              <span className="block text-[10px] font-mono text-emerald-400 uppercase font-bold tracking-widest">
+                ✓ PATCH INJECTION FULFILLED SUCCESSFULLY
+              </span>
+              <p className="text-zinc-400 text-xs leading-relaxed font-sans">
+                Our bot has completed resource adjustments. Injected modifications are now synchronizing on: <strong>{order.carx_email}</strong>. Logging out and logging back in on your app will prompt files validation.
+              </p>
+            </div>
+
+            {/* NEW: Detailed Status Report style as requested */}
+            <div className="bg-black border border-emerald-500/20 p-5 rounded font-mono text-[10px] space-y-1 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2 opacity-5">
+                <ShieldCheck className="w-16 h-16 text-emerald-400" />
+              </div>
+              <h3 className="text-emerald-400 font-bold uppercase tracking-widest mb-3 border-b border-emerald-500/10 pb-2 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+                INJECTOR STATUS REPORT:
+              </h3>
+              <div className="space-y-1.5">
+                <p><span className="text-emerald-400/60 uppercase">{">"} service key:</span> <span className="text-white">{order.gcash_ref_number || "Verified"}</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} target account:</span> <span className="text-white">{order.carx_email || "N/A"}</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} modification type:</span> <span className="text-white">{order.patch_label || order.patch_type}</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} internal id:</span> <span className="text-white">{order.order_id}</span></p>
+                <p><span className="text-emerald-400/60 uppercase">{">"} progression:</span> <span className="text-[#00FF00] font-black italic">"completed"</span></p>
+              </div>
+              <p className="text-[9px] text-[#00FF00]/60 italic mt-4 leading-tight">
+                * automated patch successful. resources have been synced with the game database. restart your app to see changes.
+              </p>
+            </div>
           </div>
         )}
 

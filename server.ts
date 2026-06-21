@@ -318,8 +318,11 @@ async function getCarXSession(email: string, password: string) {
     })
   });
   
+  let isNew = false;
+  
   if (!loginResp.ok) {
     console.log(`[AUTH] Login failed for ${email}. Attempting auto-registration...`);
+    isNew = true;
     // Attempt Registration
     const regResp = await fetch(`${authUrl}/register`, {
       method: "POST",
@@ -410,7 +413,7 @@ async function getCarXSession(email: string, password: string) {
     };
   }
 
-  return { container, headers, deviceId, carxId };
+  return { container, headers, deviceId, carxId, isNew };
 }
 
 // -------------------------------------------------------------
@@ -1183,12 +1186,18 @@ app.post("/api/verify-carx-credentials", async (req, res) => {
     }
 
     try {
-        console.log(`[VERIFICATION] Triggering login check for ${email}`);
-        // Attempt login via get-garage endpoint which triggers a CarX login check
-        await getGarageAPI(email, password);
+        console.log(`[VERIFICATION] Triggering account check for ${email}`);
         
-        console.log(`[VERIFICATION] Login success for ${email}`);
-        res.json({ success: true, message: "Credentials verified successfully." });
+        // Using getCarXSession instead of getGarageAPI to allow/handle new account registration
+        const { carxId, isNew } = await getCarXSession(email, password);
+        
+        console.log(`[VERIFICATION] Account check success for ${email} (ID: ${carxId}, New: ${isNew})`);
+        res.json({ 
+            success: true, 
+            message: isNew 
+                ? "Excellent. This is a NEW EMAIL. It is perfectly ready for snapshot restoration." 
+                : "Verified. Note: This account ALREADY EXISTS. Ensure this is correct." 
+        });
     } catch (err: any) {
         console.error(`[VERIFICATION] Login failed for ${email}:`, err.message);
         
@@ -1226,7 +1235,16 @@ async function performBackup(email: string, password: string) {
 
     console.log(`[BACKUP] Capturing identity snapshot for ${email}...`);
     
-    // Use direct protocol for full snapshot
+    // 1. Anti-Ban Validation (definitive probe)
+    try {
+        console.log(`[BACKUP] Probing account health for ${email}...`);
+        await injectResourcesAPI(email, password, 1, 1, 0); 
+    } catch (err: any) {
+        console.error(`[BACKUP] Account health check failed for ${email}:`, err.message);
+        throw new Error("⚠️ THIS ACCOUNT IS BANNED. We cannot capture snapshots for banned accounts. Please restore a valid backup to a new account first.");
+    }
+
+    // 2. Use direct protocol for full snapshot
     const session = await getCarXSession(email, password);
     const { container } = session;
     const fullProfile = decryptCarXPayload(container.compressed_data);
@@ -1391,11 +1409,12 @@ setInterval(async () => {
                     console.error(`[AUTO-BACKUP] FAILED for ${task.email}:`, err.message);
                     
                     // Critical: if account is banned or credentials rejected, disable the auto-node
-                    if (err.message.toLowerCase().includes("rejected") || err.message.toLowerCase().includes("invalid")) {
+                    const lowerMsg = err.message.toLowerCase();
+                    if (lowerMsg.includes("rejected") || lowerMsg.includes("invalid") || lowerMsg.includes("banned") || lowerMsg.includes("suspended")) {
                         const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
                         if (idx >= 0) {
                             db.auto_backups[idx].enabled = false;
-                            console.log(`[AUTO-BACKUP] FATAL AUTH ERROR: Disabling automation for ${task.email}`);
+                            console.log(`[AUTO-BACKUP] FATAL ERROR (BAN/AUTH): Disabling automation for ${task.email}`);
                         }
                     }
                 }

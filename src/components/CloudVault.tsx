@@ -165,8 +165,12 @@ export default function CloudVault({ onNavigate }: CloudVaultProps) {
         throw new Error(verifyData.error || "Login Verification Failed");
       }
 
-      // Success! Proceed to payment
-      setIsPayModalOpen(true);
+      // Success! Show message and then proceed to payment
+      setMessage({ type: "success", text: verifyData.message });
+      
+      setTimeout(() => {
+        setIsPayModalOpen(true);
+      }, 1500);
     } catch (err: any) {
       setMessage({ type: "error", text: err.message });
       // Scroll to error
@@ -344,8 +348,8 @@ export default function CloudVault({ onNavigate }: CloudVaultProps) {
                   <DownloadCloud className="w-5 h-5 text-sky-400" />
                   <div>
                     <h3 className="text-xs font-bold text-white uppercase italic">Target Account Selection</h3>
-                    <p className="text-[10px] text-zinc-400 font-sans leading-tight">
-                      Where should this cloud snapshot be injected? Provide target login credentials.
+                    <p className="text-[10px] text-amber-400 font-sans leading-tight">
+                      <strong>IMPORTANT:</strong> Restoration requires a <strong>NEW EMAIL ADDRESS</strong> (one that does not have an existing CarX account).
                     </p>
                   </div>
                 </div>

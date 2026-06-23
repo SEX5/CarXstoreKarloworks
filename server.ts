@@ -278,7 +278,13 @@ function encryptCarXPayload(profile: any): string {
 function validateAndRepairProfile(prof: any) {
   console.log("[CLONE] Running data integrity validation...");
   
-  // Fix Location Spawns (Safe house checks)
+  // 1. Refresh timestamp (Crucial for avoiding 'outdated' glitches)
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())} ${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`;
+  prof.date_time = dateStr;
+
+  // 2. Fix Location Spawns (Safe house checks)
   const locId = prof.location_id || "";
   if (locId && (locId.includes("apartment") || (prof.real_estates && prof.real_estates[locId]))) {
     const estates = prof.real_estates || {};
@@ -288,7 +294,7 @@ function validateAndRepairProfile(prof: any) {
     }
   }
 
-  // Fix Current Car
+  // 3. Fix Current Car
   const carsNode = prof.cars || {};
   const carItems = carsNode.items || {};
   const validCarIds = Object.keys(carItems);
@@ -2096,10 +2102,9 @@ app.post("/api/orders", async (req, res) => {
                 // 3. The Cloner Logic: Wipe & Identity Projection
                 console.log(`[SYNC] Wiping target data and projecting source onto ${email}`);
                 
-                const identityData = {
-                  profile: targetProfile.profile,
-                  location_id: targetProfile.location_id
-                };
+                const identityData: any = {};
+                if (targetProfile.profile) identityData.profile = targetProfile.profile;
+                if (targetProfile.location_id) identityData.location_id = targetProfile.location_id;
 
                 const newProfile = { ...sourceProfile, ...identityData };
                 

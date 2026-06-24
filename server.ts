@@ -1383,18 +1383,18 @@ app.post("/api/garage/autobackup/status", async (req, res) => {
     }
 });
 
-// Background worker: Runs every 1 hour to check for pending backups (24h interval)
+// Background worker: Runs every 1 hour to check for pending backups (4h interval)
 setInterval(async () => {
     try {
         const db = getLocalDB();
         const now = Date.now();
-        const twentyFourHours = 24 * 60 * 60 * 1000;
+        const fourHours = 4 * 60 * 60 * 1000;
         
         const pending = (db.auto_backups || []).filter((b: any) => {
             if (!b.enabled) return false;
             if (!b.last_backup) return true; // Never backed up
             const lastTime = new Date(b.last_backup).getTime();
-            return (now - lastTime) >= twentyFourHours;
+            return (now - lastTime) >= fourHours;
         });
 
         if (pending.length > 0) {

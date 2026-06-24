@@ -268,7 +268,7 @@ export default function CloudVault({ onNavigate }: CloudVaultProps) {
                          Automation Node
                        </span>
                     </div>
-                    <span className="text-[8px] text-zinc-500 font-sans uppercase font-bold tracking-tight">Adaptive 24h Snapshot Protocol</span>
+                    <span className="text-[8px] text-zinc-500 font-sans uppercase font-bold tracking-tight">Adaptive 4h Snapshot Protocol</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[8px] font-black italic text-[#FFD700] uppercase tracking-widest bg-[#FFD700]/10 px-2 py-1 rounded border border-[#FFD700]/30 animate-pulse">

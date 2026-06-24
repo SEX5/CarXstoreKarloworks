@@ -343,8 +343,8 @@ export default function OrderPatch({ onNavigate, viewParam }: OrderPatchProps) {
                     >
                       <div>
                         <div className="flex justify-between items-start mb-2">
-                          <span className="text-[8px] font-mono uppercase bg-black px-1.5 py-0.5 rounded border border-[#1A1A1A] text-zinc-500 font-bold">
-                            FORMULA MODE
+                          <span className={`text-[8px] font-mono uppercase bg-black px-1.5 py-0.5 rounded border font-bold ${serv.patch_type === 'custom_resources' ? 'border-red-900 text-red-500' : 'border-[#1A1A1A] text-zinc-500'}`}>
+                            {serv.patch_type === 'custom_resources' ? '⚠️ HIGH RISK' : 'FORMULA MODE'}
                           </span>
                           <strong className="text-xs font-mono text-[#FFD700]">₱{Number(serv.price).toFixed(2)}</strong>
                         </div>
@@ -426,6 +426,18 @@ export default function OrderPatch({ onNavigate, viewParam }: OrderPatchProps) {
                   <div className="text-[10px] font-mono font-bold text-[#FFD700] uppercase tracking-wider border-b border-zinc-900 pb-2">
                     {selectedPatchType === "max_level" ? "⚡ AUTOMATED LEVEL INJECTION ACTIVE" : "🛠 Set target resource limits (Unlimited Sandbox)"}
                   </div>
+
+                  {selectedPatchType === "custom_resources" && (
+                    <div className="bg-red-950/20 border border-red-900/30 p-3 rounded flex items-start gap-3">
+                      <Flame className="w-4 h-4 text-red-500 shrink-0 mt-0.5 animate-pulse" />
+                      <div>
+                        <p className="text-[10px] text-red-400 font-bold uppercase tracking-tight font-mono">High Risk Warning</p>
+                        <p className="text-[9px] text-zinc-400 leading-tight mt-1 font-sans">
+                          Manual resource injection carries a significantly higher detection risk compared to <strong>Ban-Safe</strong> tiers. Large injections may trigger account reviews or automated bans.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {selectedPatchType === "max_level" ? (
                     <div className="flex items-center gap-3 p-3 bg-zinc-950 border border-zinc-900 rounded">

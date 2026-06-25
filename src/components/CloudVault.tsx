@@ -268,7 +268,7 @@ export default function CloudVault({ onNavigate }: CloudVaultProps) {
                          Automation Node
                        </span>
                     </div>
-                    <span className="text-[8px] text-zinc-500 font-sans uppercase font-bold tracking-tight">Adaptive 4h Snapshot Protocol</span>
+                    <span className="text-[8px] text-zinc-500 font-sans uppercase font-bold tracking-tight">Adaptive 1h Snapshot Protocol</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[8px] font-black italic text-[#FFD700] uppercase tracking-widest bg-[#FFD700]/10 px-2 py-1 rounded border border-[#FFD700]/30 animate-pulse">
@@ -280,7 +280,7 @@ export default function CloudVault({ onNavigate }: CloudVaultProps) {
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-900/50">
                    <div className={`flex flex-col gap-1 p-2 rounded border font-mono transition-all ${isAutoEnabled ? "bg-emerald-500/10 border-emerald-500/20" : "bg-black border-zinc-900/80"}`}>
                       <span className="text-[7px] text-zinc-500 uppercase font-bold tracking-tighter">RETENTION NODE</span>
-                      <span className={`text-[9px] font-black italic ${isAutoEnabled ? "text-emerald-400" : "text-zinc-700"}`}>7 SNAPSHOTS</span>
+                      <span className={`text-[9px] font-black italic ${isAutoEnabled ? "text-emerald-400" : "text-zinc-700"}`}>LATEST CONFIRMED</span>
                    </div>
                    <div className={`flex flex-col gap-1 p-2 rounded border font-mono transition-all ${isAutoEnabled ? "bg-emerald-500/10 border-emerald-500/20" : "bg-black border-zinc-900/80"}`}>
                       <span className="text-[7px] text-zinc-500 uppercase font-bold tracking-tighter">AUTO-SAFETY</span>

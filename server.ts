@@ -1277,7 +1277,9 @@ async function performBackup(email: string, password: string) {
     return { fileName, timestamp: new Date().toISOString() };
 }
 
-// Keep only the last 7 snapshots for an account to save storage
+// Keep only the absolute most recent snapshot for an account
+// Logic: This is only called after a successful health-check + backup, 
+// ensuring we only delete old snapshots when we have a confirmed "Good" replacement.
 async function cleanupBackups(email: string) {
     if (!supabaseAdmin) return;
     const bucketName = "backandrestore";
@@ -1286,21 +1288,28 @@ async function cleanupBackups(email: string) {
     const { data: files, error } = await supabaseAdmin.storage
         .from(bucketName)
         .list(safeEmail, {
-            limit: 50,
+            limit: 100,
             offset: 0,
             sortBy: { column: 'name', order: 'desc' }
         });
 
-    if (error || !files) return;
+    if (error || !files || files.length === 0) return;
 
     // Filter for snapshot files only
     const snapshots = files.filter(f => f.name.endsWith("_snapshot.json"));
-    
-    if (snapshots.length > 7) {
-        const toDelete = snapshots.slice(7).map(f => `${safeEmail}/${f.name}`);
+    if (snapshots.length <= 1) return; // Keep at least the latest one
+
+    // [BAN PROTECTION] snapshots[0] is the absolute latest (confirmed healthy)
+    // We only delete older snapshots because we just successfully verified and backed up the account.
+    // If the account was banned, performBackup would have failed BEFORE calling this.
+    const toDelete = snapshots.slice(1).map(f => `${safeEmail}/${f.name}`);
+
+    if (toDelete.length > 0) {
         const { error: delError } = await supabaseAdmin.storage.from(bucketName).remove(toDelete);
         if (!delError) {
-            console.log(`[CLEANUP] Auto-removed ${toDelete.length} outdated snapshots for ${email} (Retention: 7)`);
+            console.log(`[CLEANUP] Account ${email} is HEALTHY. Rotating snapshots (Kept latest, removed ${toDelete.length} legacy versions).`);
+        } else {
+            console.error(`[CLEANUP] Failed to remove legacy files for ${email}:`, delError.message);
         }
     }
 }
@@ -1383,18 +1392,22 @@ app.post("/api/garage/autobackup/status", async (req, res) => {
     }
 });
 
-// Background worker: Runs every 1 hour to check for pending backups (4h interval)
-setInterval(async () => {
+// Background worker: Checks for pending backups (4h interval)
+async function runBackupWorker() {
     try {
+        if (!supabaseAdmin) {
+            console.warn("[AUTO-BACKUP] Skipping worker run: Supabase storage is not configured.");
+            return;
+        }
         const db = getLocalDB();
         const now = Date.now();
-        const fourHours = 4 * 60 * 60 * 1000;
+        const oneHour = 1 * 60 * 60 * 1000;
         
         const pending = (db.auto_backups || []).filter((b: any) => {
             if (!b.enabled) return false;
             if (!b.last_backup) return true; // Never backed up
             const lastTime = new Date(b.last_backup).getTime();
-            return (now - lastTime) >= fourHours;
+            return (now - lastTime) >= oneHour;
         });
 
         if (pending.length > 0) {
@@ -1430,7 +1443,11 @@ setInterval(async () => {
     } catch (err: any) {
         console.error("[AUTO-BACKUP] Worker error:", err.message);
     }
-}, 3600000); // 1 hour check interval
+}
+
+console.log("[AUTO-BACKUP] Background worker initialized. Checking every 5 minutes.");
+runBackupWorker(); // Run immediately on startup
+setInterval(runBackupWorker, 300000); // 5 minute check interval
 
 // List all backups for a specific account
 app.post("/api/garage/backups/list", async (req, res) => {

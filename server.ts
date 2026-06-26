@@ -1323,9 +1323,30 @@ app.post("/api/garage/backup", async (req, res) => {
 
     try {
         const result = await performBackup(email, password);
+        
+        // AUTOMATICALLY enroll/update in auto_backups since they successfully backed up!
+        const db = getLocalDB();
+        db.auto_backups = db.auto_backups || [];
+        const existingIndex = db.auto_backups.findIndex((b: any) => b.email === email);
+        const entry = {
+            email,
+            password: encrypt(password), // Encrypt sensitive credentials
+            enabled: true,
+            status: "Healthy",
+            last_backup: new Date().toISOString(),
+            created_at: existingIndex >= 0 ? db.auto_backups[existingIndex].created_at : new Date().toISOString()
+        };
+        
+        if (existingIndex >= 0) {
+            db.auto_backups[existingIndex] = entry;
+        } else {
+            db.auto_backups.push(entry);
+        }
+        saveLocalDB(db);
+
         res.json({ 
             success: true, 
-            message: "Identity snapshot successfully captured and stored in cloud.",
+            message: "Identity snapshot successfully captured and stored in cloud. Hourly Auto-Backup is now active!",
             ...result
         });
     } catch (err: any) {
@@ -1386,13 +1407,18 @@ app.post("/api/garage/autobackup/status", async (req, res) => {
     try {
         const db = getLocalDB();
         const entry = (db.auto_backups || []).find((b: any) => b.email === email);
-        res.json({ success: true, enabled: entry ? entry.enabled : false, last_backup: entry ? entry.last_backup : null });
+        res.json({ 
+            success: true, 
+            enabled: entry ? entry.enabled : false, 
+            last_backup: entry ? entry.last_backup : null,
+            status: entry ? (entry.status || "Healthy") : "Healthy"
+        });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Background worker: Checks for pending backups (4h interval)
+// Background worker: Checks for pending backups (1h interval)
 async function runBackupWorker() {
     try {
         if (!supabaseAdmin) {
@@ -1418,23 +1444,33 @@ async function runBackupWorker() {
                     const decryptedPass = decrypt(task.password);
                     await performBackup(task.email, decryptedPass);
                     
-                    // Update last backup time
+                    // Update backup details and mark as healthy
                     const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
                     if (idx >= 0) {
                         db.auto_backups[idx].last_backup = new Date().toISOString();
+                        db.auto_backups[idx].status = "Healthy";
                     }
                     console.log(`[AUTO-BACKUP] SUCCESS for ${task.email}`);
                 } catch (err: any) {
                     console.error(`[AUTO-BACKUP] FAILED for ${task.email}:`, err.message);
                     
-                    // Critical: if account is banned or credentials rejected, disable the auto-node
                     const lowerMsg = err.message.toLowerCase();
-                    if (lowerMsg.includes("rejected") || lowerMsg.includes("invalid") || lowerMsg.includes("banned") || lowerMsg.includes("suspended")) {
-                        const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
-                        if (idx >= 0) {
-                            db.auto_backups[idx].enabled = false;
-                            console.log(`[AUTO-BACKUP] FATAL ERROR (BAN/AUTH): Disabling automation for ${task.email}`);
+                    const isBanOrAuth = lowerMsg.includes("rejected") || lowerMsg.includes("invalid") || lowerMsg.includes("banned") || lowerMsg.includes("suspended");
+                    
+                    const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
+                    if (idx >= 0) {
+                        if (isBanOrAuth) {
+                            // [BAN DETECTION RETENTION PROTOCOL]
+                            // Do NOT disable the worker, and do NOT delete/clean up any snapshots.
+                            // We set status to indicate they are safe.
+                            db.auto_backups[idx].status = "Suspended/Banned - Snapshots Safe";
+                            console.warn(`[AUTO-BACKUP] BAN DETECTED for ${task.email}. Bypassing snapshot cleanup to preserve previous secure backups.`);
+                        } else {
+                            db.auto_backups[idx].status = `Error: ${err.message}`;
                         }
+                        
+                        // Set the check timestamp so it doesn't spin-loop retry every 5 minutes
+                        db.auto_backups[idx].last_backup = new Date().toISOString();
                     }
                 }
             }

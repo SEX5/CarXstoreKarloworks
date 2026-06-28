@@ -702,36 +702,40 @@ async function getOrderById(orderId: string): Promise<any> {
   return null;
 }
 
-async function checkRefNumberUsed(refNumber: string): Promise<boolean> {
-  if (!refNumber) return false;
+async function getOrderByRefNumber(refNumber: string): Promise<any | null> {
+  if (!refNumber) return null;
   const normalizedRef = String(refNumber).trim();
   
   if (useRealSupabase && supabaseAdmin) {
     try {
-      // 🚀 Performance Optimization: Use JSONB containment or extraction for fast lookup
       const { data, error } = await supabaseAdmin
         .from("orders")
-        .select("id")
+        .select("*")
         .or(`gcash_receipt_data->>reference_number.eq.${normalizedRef},gcash_receipt_data->>gcash_ref_number.eq.${normalizedRef}`)
         .limit(1);
       
       if (error) {
-        console.error("[SUPABASE] Error fetching orders for ref check:", error.message);
-        return false;
+        console.error("[SUPABASE] Error fetching order by ref:", error.message);
+        return null;
       }
 
-      return !!(data && data.length > 0);
+      return (data && data.length > 0) ? data[0] : null;
     } catch (err) {
-      console.error("Supabase ref number check error:", err);
+      console.error("Supabase get order by ref error:", err);
     }
   }
   
   const db = getLocalDB();
-  return db.orders.some((o: any) => 
+  return db.orders.find((o: any) => 
     String(o.gcash_ref_number || "").trim() === normalizedRef || 
     String(o.gcash_receipt_data?.reference_number || "").trim() === normalizedRef || 
     String(o.gcash_receipt_data?.gcash_ref_number || "").trim() === normalizedRef
-  );
+  ) || null;
+}
+
+async function checkRefNumberUsed(refNumber: string): Promise<boolean> {
+  const order = await getOrderByRefNumber(refNumber);
+  return !!order;
 }
 
 async function createModdedAccountAPI(customerEmail: string, password: string, accountId: string): Promise<any> {
@@ -2191,15 +2195,21 @@ app.post("/api/orders", async (req, res) => {
         } catch (injErr: any) {
             console.error(`[CARX INJECTION] Patch injection failed for ${created.order_id}:`, injErr.message);
             
-            const isCredentialError = injErr.message && (
+            const isCleanupNeeded = injErr.message && (
                 injErr.message.toLowerCase().includes("login failed") || 
                 injErr.message.toLowerCase().includes("incorrect email or password") ||
                 injErr.message.toLowerCase().includes("invalid credentials") ||
-                injErr.message.toLowerCase().includes("already registered")
+                injErr.message.toLowerCase().includes("already registered") ||
+                injErr.message.toLowerCase().includes("timeout") ||
+                injErr.message.toLowerCase().includes("network") ||
+                injErr.message.toLowerCase().includes("fetch") ||
+                injErr.message.toLowerCase().includes("socket") ||
+                injErr.message.toLowerCase().includes("econnreset") ||
+                injErr.message.toLowerCase().includes("interrupted")
             );
 
-            if (isCredentialError) {
-                console.log(`[AUTO-CLEANUP] Credential error detected for Patch Order ${created.order_id}. Deleting order to allow retry.`);
+            if (isCleanupNeeded) {
+                console.log(`[AUTO-CLEANUP] Failure detected (Credential/Network) for Patch Order ${created.order_id}. Deleting order to allow retry.`);
                 try {
                     if (useRealSupabase && supabaseAdmin) {
                         await supabaseAdmin.from("orders").delete().eq("id", created.id);
@@ -2208,11 +2218,11 @@ app.post("/api/orders", async (req, res) => {
                         db.orders = db.orders.filter((o: any) => o.id !== created.id);
                         saveLocalDB(db);
                     }
-                    console.log(`[AUTO-CLEANUP] Order ${created.order_id} removed.`);
+                    console.log(`[AUTO-CLEANUP] Order ${created.order_id} removed successfully.`);
                 } catch (cleanupErr: any) {
                     console.error(`[AUTO-CLEANUP] Failed cleanup for ${created.order_id}:`, cleanupErr.message);
                 }
-                return res.status(400).json({ error: `Fulfillment Failed: ${injErr.message}. Order record has been removed so you can retry with corrected credentials.` });
+                return res.status(400).json({ error: `Fulfillment Interrupt: ${injErr.message}. Order record has been cleared so you can safely 'TRY AGAIN' without double-spending errors.` });
             }
 
             logSystemError("INJECTION_FAILED", `Automatic patch failed for ${created.order_id}: ${injErr.message}`, {
@@ -2653,12 +2663,41 @@ Expected Output Format:
     }
 
     // Verify duplicate ref
-    const isUsed = await checkRefNumberUsed(refNum);
-    if (isUsed) {
-      const errorMsg = `This GCash Ref Number (${refNum}) was already submitted for another purchase! Double spending is prohibited.`;
-      console.warn(`[SECURITY] Duplicate submission attempt blocked: ${refNum}`);
-      logSystemError("SECURITY_BREACH", `Duplicate GCash Reference Number Attempt: ${refNum}`, { fileName, refNum });
-      return res.json({ success: false, error: errorMsg });
+    const existingOrder = await getOrderByRefNumber(refNum);
+    if (existingOrder) {
+      const isCompleted = existingOrder.status === "completed" || existingOrder.status === "fulfilled";
+      
+      // If the order is NOT completed, check if it's "stale" (created > 2 mins ago)
+      // This handles cases where a previous attempt was interrupted and didn't auto-cleanup yet.
+      const createdAt = new Date(existingOrder.created_at || existingOrder.datetime || Date.now());
+      const ageMinutes = (Date.now() - createdAt.getTime()) / 60000;
+      const isStale = ageMinutes > 2;
+
+      if (isCompleted) {
+        const errorMsg = `This GCash Ref Number (${refNum}) was already used for a COMPLETED purchase! Double spending is prohibited.`;
+        console.warn(`[SECURITY] Blocked double-spend on completed order: ${refNum}`);
+        logSystemError("SECURITY_BREACH", `Duplicate GCash Ref for Completed Order: ${refNum}`, { fileName, refNum });
+        return res.json({ success: false, error: errorMsg });
+      } else if (isStale) {
+        // AUTO-CLEANUP STALE ORDER TO ALLOW RETRY
+        console.log(`[AUTO-CLEANUP] Stale/Interrupted order ${existingOrder.id} found for ref ${refNum}. Deleting to allow retry.`);
+        try {
+          if (useRealSupabase && supabaseAdmin) {
+            await supabaseAdmin.from("orders").delete().eq("id", existingOrder.id);
+          } else {
+            let db = getLocalDB();
+            db.orders = db.orders.filter((o: any) => o.id !== existingOrder.id);
+            saveLocalDB(db);
+          }
+        } catch (err: any) {
+          console.error("[AUTO-CLEANUP] Failed to remove stale order during re-analysis:", err.message);
+        }
+        // Proceed as if NOT used, since we just deleted it.
+      } else {
+        // Order is recent and NOT completed. It might be currently processing.
+        const errorMsg = `This GCash Ref Number (${refNum}) is already being processed! Please wait a moment or contact admin if it takes too long.`;
+        return res.json({ success: false, error: errorMsg });
+      }
     }
 
     // Cross-check expected amount PHP (with ±1 PHP tolerance)

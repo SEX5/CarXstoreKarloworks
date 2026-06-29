@@ -603,7 +603,7 @@ export default function OrderPatch({ onNavigate, viewParam }: OrderPatchProps) {
                     <span>VERIFYING GAME ACCOUNT...</span>
                   </>
                 ) : (
-                  <span>PROCEED TO GCASH VERIFICATION</span>
+                  <span>PROCEED TO VERIFICATION</span>
                 )}
               </button>
             </form>
@@ -628,7 +628,7 @@ export default function OrderPatch({ onNavigate, viewParam }: OrderPatchProps) {
 
               <div className="flex justify-between items-center text-xs border-t border-zinc-900 pt-3.5">
                 <span className="text-zinc-500 font-bold uppercase tracking-wider text-[9px] font-mono">VERIFIER CHROME:</span>
-                <span className="text-[#FFD700] font-mono text-[10px] font-bold">GCASH GEMINI SCANNER</span>
+                <span className="text-[#FFD700] font-mono text-[10px] font-bold">GEMINI RECEIPT SCANNER</span>
               </div>
 
               <div className="flex justify-between items-center border-t border-zinc-900 pt-4">
@@ -647,7 +647,7 @@ export default function OrderPatch({ onNavigate, viewParam }: OrderPatchProps) {
         </div>
       )}
 
-      {/* GCash Payment wizard modal */}
+      {/* Payment wizard modal */}
       <PaymentWizard
         isOpen={isPayModalOpen}
         onClose={() => setIsPayModalOpen(false)}

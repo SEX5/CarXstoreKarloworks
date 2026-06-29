@@ -1371,14 +1371,14 @@ export default function AdminPanel() {
         <div className="max-w-2xl mx-auto bg-[#0A0A0A] border border-[#1A1A1A] p-6 md:p-8 rounded space-y-6" id="admin-tab-settings">
           <div className="border-b border-zinc-900 pb-3">
             <h2 className="text-sm font-bold uppercase tracking-wider text-white">RESELLER SYSTEM CONFIGURATOR</h2>
-            <p className="text-zinc-500 text-[10px] font-mono mt-1">Configure GCash credentials, external support routes, and toggle page operational indicators.</p>
+            <p className="text-zinc-500 text-[10px] font-mono mt-1">Configure payment credentials, external support routes, and toggle page operational indicators.</p>
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-6 font-mono text-[11px] text-zinc-400">
             {/* GCash Phone Number */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">GCash Receiver Name</label>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Receiver Account Name</label>
                 <input
                   type="text"
                   required
@@ -1389,7 +1389,7 @@ export default function AdminPanel() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">GCash Manual Receiver Number</label>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Receiver Account Number</label>
                 <input
                   type="text"
                   required
@@ -1402,7 +1402,7 @@ export default function AdminPanel() {
 
             {/* GCash QR Code URL */}
             <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">GCash QR Code Image URL (Public URL or Supabase)</label>
+              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Payment QR Code Image URL</label>
               <input
                 type="text"
                 required

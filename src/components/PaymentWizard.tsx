@@ -20,6 +20,7 @@ interface PaymentWizardProps {
   carxPassword: string;
   patchType: string;
   customDetails: any;
+  orderType?: "patch" | "account" | "replacement" | "refill";
   onComplete: (orderId: string, refNumber: string) => void;
   onNavigate?: (view: string, arg?: any) => void;
 }
@@ -33,10 +34,12 @@ export default function PaymentWizard({
   carxPassword,
   patchType,
   customDetails,
+  orderType = "patch",
   onComplete,
   onNavigate
 }: PaymentWizardProps) {
   const [modalStep, setModalStep] = useState<"pay_instructions" | "upload_receipt" | "order_complete">("pay_instructions");
+  const [paymentMethod, setPaymentMethod] = useState<"gcash" | "other">("gcash");
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [verifyingReceipt, setVerifyingReceipt] = useState(false);
@@ -124,7 +127,8 @@ export default function PaymentWizard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           base64Image: receiptBase64,
-          expectedAmount: servicePrice
+          expectedAmount: servicePrice,
+          paymentMethod: paymentMethod
         })
       });
 
@@ -137,15 +141,18 @@ export default function PaymentWizard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          order_type: "patch",
+          order_type: orderType,
           customer_email: carxEmail,
           carx_email: carxEmail,
           carx_password: carxPassword,
           patch_type: patchType,
           patch_label: serviceLabel,
+          account_id: orderType === "account" ? patchType : null,
           custom_details: customDetails,
           amount_paid: servicePrice,
           gcash_ref_number: ocrResult.data.reference_number,
+          gcash_receipt_url: ocrResult.data.receipt_url,
+          payment_method: paymentMethod,
           gcash_receipt_data: ocrResult.data,
           status: "paid"
         })
@@ -202,7 +209,7 @@ export default function PaymentWizard({
               SECURE TRANSACTION GATEWAY
             </span>
             <h3 className="font-display font-black italic uppercase text-lg text-white">
-              {modalStep === "order_complete" ? "PROVISIONING COMPLETE" : "GCASH VERIFICATION"}
+              {modalStep === "order_complete" ? "PROVISIONING COMPLETE" : (paymentMethod === "gcash" ? "GCASH VERIFICATION" : "UNIVERSAL VERIFICATION")}
             </h3>
           </div>
           {modalStep !== "order_complete" && (
@@ -217,20 +224,45 @@ export default function PaymentWizard({
 
         {modalStep === "pay_instructions" && (
           <div className="space-y-6">
-            <div className="bg-zinc-950 border border-zinc-900 rounded p-4 text-[11px] leading-relaxed text-zinc-400 space-y-2">
+            <div className="flex gap-2 p-1 bg-black border border-zinc-900 rounded">
+              <button 
+                onClick={() => setPaymentMethod("gcash")}
+                className={`flex-1 py-2 text-[10px] font-mono font-bold uppercase transition-all ${paymentMethod === "gcash" ? "bg-[#FFD700] text-black" : "text-zinc-500 hover:text-zinc-300"}`}
+              >
+                GCASH
+              </button>
+              <button 
+                onClick={() => setPaymentMethod("other")}
+                className={`flex-1 py-2 text-[10px] font-mono font-bold uppercase transition-all ${paymentMethod === "other" ? "bg-[#FFD700] text-black" : "text-zinc-500 hover:text-zinc-300"}`}
+              >
+                OTHER WALLET / BANKS
+              </button>
+            </div>
+
+            <div className="bg-zinc-950 border border-zinc-900 rounded p-4 text-[11px] leading-relaxed text-zinc-300 space-y-2">
               <p className="font-bold text-[#FFD700] text-xs font-mono uppercase">PAYMENT INSTRUCTIONS</p>
-              <p>1. Open GCash and Send Money to the address below.</p>
-              <p>2. Transfer exactly <strong>₱{servicePrice.toFixed(2)} PHP</strong>.</p>
-              <p>3. Upload a screenshot of the receipt in the next step.</p>
+              <p>1. Open {paymentMethod === "gcash" ? "GCash app" : "your Wallet or Bank App"} and select <strong className="text-white">"Send Money"</strong> or scan the QR Code below.</p>
+              <p>2. Send the exact amount representing <strong className="text-white">₱{servicePrice.toFixed(2)} PHP</strong> to the Account details below.</p>
+              <p>3. <strong className="text-[#FFD700]">CRITICAL: Save/screenshot the transaction receipt screen!</strong> You will upload it next.</p>
+              {paymentMethod === "other" && (
+                <p className="text-emerald-500 font-bold border-t border-zinc-900 pt-2 mt-2 italic">
+                  * Supports Maya, BPI, SeaBank, MariBank, etc. via Instapay/QRPH.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 items-center bg-zinc-950 p-4 rounded border border-zinc-900">
                <div className="space-y-2">
-                  <span className="block text-[9px] font-mono text-zinc-600 font-bold uppercase text-left">GCash Receiver</span>
+                  <span className="block text-[11px] font-mono text-zinc-500 font-bold uppercase text-left tracking-widest">{paymentMethod === "gcash" ? "GCASH RECEIVER" : "ACCOUNT NUMBER"}</span>
                   <div className="p-2 bg-black text-white font-mono text-xs rounded border border-zinc-900 flex justify-between items-center">
                     <div className="flex flex-col text-left">
-                      <span className="text-[8px] text-zinc-600 font-bold uppercase truncate">{gcashSettings.gcash_name}</span>
-                      <span>{gcashSettings.gcash_number}</span>
+                      {paymentMethod === "gcash" && (
+                        <span className="text-[8px] text-zinc-600 font-bold uppercase truncate">{gcashSettings.gcash_name}</span>
+                      )}
+                      <span className="text-base font-bold font-mono">{gcashSettings.gcash_number}</span>
+                      {paymentMethod === "other" && (
+                        <span className="text-[10px] text-emerald-400 font-bold uppercase truncate mt-0.5">KARL ABALUNAN</span>
+                      )}
                     </div>
                     <button onClick={() => handleCopyText(gcashSettings.gcash_number)} className="text-[#FFD700] hover:text-white">
                       <Copy className="w-3 h-3" />

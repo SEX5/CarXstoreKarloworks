@@ -189,7 +189,7 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
               transition={{ delay: 0.2 }}
               className="text-zinc-400 text-sm sm:text-base max-w-xl font-sans leading-relaxed"
             >
-              Fast delivery (~30 seconds) on modded accounts and automated resource calibrations. Full GCash scanner integration ensures instant on-screen logins, with zero admin wait times.
+              Fast delivery (~30 seconds) on modded accounts and automated resource calibrations. Universal receipt scanner integration ensures instant on-screen logins, with zero admin wait times.
             </motion.p>
 
               <motion.div
@@ -259,7 +259,7 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
                   </span>
                 </div>
                 <div className="text-white font-bold text-[11px] tracking-wider uppercase">
-                  ACTIVE PIPELINE: GCASH SCAN v2.4
+                  ACTIVE PIPELINE: UNIVERSAL SCAN v2.4
                 </div>
               </div>
             </motion.div>
@@ -310,9 +310,9 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
               <Star className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">GCash Analysis</h3>
+              <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight mb-2">Instant Analysis</h3>
               <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-                Send GCash manually, upload your receipt block, and let our Gemini AI verify transaction hashes in real-time.
+                Send payment manually via GCash or Other Wallets, upload your receipt block, and let our Gemini AI verify transaction hashes in real-time.
               </p>
             </div>
           </div>

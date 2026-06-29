@@ -67,6 +67,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
   // Modal steps: "credentials" | "pay_instructions" | "upload_receipt" | "cloning_loader" | "delivery_panel"
   const [selectedAccount, setSelectedAccount] = useState<CarXAccount | null>(null);
   const [modalStep, setModalStep] = useState<"credentials" | "pay_instructions" | "upload_receipt" | "cloning_loader" | "delivery_panel">("credentials");
+  const [paymentMethod, setPaymentMethod] = useState<"gcash" | "other">("gcash");
   const [carxEmail, setCarxEmail] = useState("");
   const [carxPassword, setCarxPassword] = useState("");
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
@@ -215,7 +216,8 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
         body: JSON.stringify({
           base64Image: receiptBase64,
           expectedAmount: selectedAccount.price,
-          fileName: uploadedFileName
+          fileName: uploadedFileName,
+          paymentMethod: paymentMethod
         })
       });
 
@@ -502,7 +504,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: 12 }}
               className="relative w-full max-w-lg rounded bg-black border border-zinc-800 p-6 md:p-8 overflow-hidden"
-              id="gcash-payment-modal"
+              id="payment-modal"
             >
               {/* Header Title bar */}
               <div className="flex justify-between items-start mb-6 border-b border-zinc-900 pb-4">
@@ -511,7 +513,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                     MODDED REPLICA CLONER
                   </span>
                   <h3 className="font-display font-black italic uppercase text-lg text-white">
-                    {modalStep === "cloning_loader" ? "INJECTING METADATA..." : "GCASH AUTO-DELIVERY COCKPIT"}
+                    {modalStep === "cloning_loader" ? "INJECTING METADATA..." : (paymentMethod === "gcash" ? "GCASH AUTO-DELIVERY" : "UNIVERSAL AUTO-DELIVERY")}
                   </h3>
                 </div>
                 {modalStep !== "cloning_loader" && (
@@ -626,30 +628,52 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                           : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
                       }`}
                     >
-                      <span>NEXT: PAY VIA GCASH</span>
+                      <span>NEXT: PROCEED TO PAY</span>
                       <ArrowRight className={`w-3.5 h-3.5 ${isFormValid ? "text-black" : "text-zinc-500"}`} />
                     </button>
                   </div>
                 </form>
               )}
 
-              {/* STEP 2: GCASH STEPS */}
+              {/* STEP 2: PAYMENT STEPS */}
               {modalStep === "pay_instructions" && (
                 <div className="space-y-6">
+                  <div className="flex gap-2 p-1 bg-black border border-zinc-900 rounded">
+                    <button 
+                      onClick={() => setPaymentMethod("gcash")}
+                      className={`flex-1 py-2 text-[10px] font-mono font-bold uppercase transition-all ${paymentMethod === "gcash" ? "bg-[#FFD700] text-black" : "text-zinc-500 hover:text-zinc-300"}`}
+                    >
+                      GCASH
+                    </button>
+                    <button 
+                      onClick={() => setPaymentMethod("other")}
+                      className={`flex-1 py-2 text-[10px] font-mono font-bold uppercase transition-all ${paymentMethod === "other" ? "bg-[#FFD700] text-black" : "text-zinc-500 hover:text-zinc-300"}`}
+                    >
+                      OTHER WALLET / BANKS
+                    </button>
+                  </div>
+
                   <div className="bg-zinc-950 border border-zinc-900 rounded p-4 text-[11px] leading-relaxed text-zinc-300 space-y-2">
-                    <p className="font-bold text-[#FFD700] text-xs font-mono uppercase">MANUAL GCASH STEPS</p>
-                    <p>1. Open GCash app and select <strong className="text-white">"Send Money" &gt; "Express Send"</strong> or scan the QR Code below.</p>
+                    <p className="font-bold text-[#FFD700] text-xs font-mono uppercase">PAYMENT INSTRUCTIONS</p>
+                    <p>1. Open {paymentMethod === "gcash" ? "GCash app" : "your Wallet or Bank App"} and select <strong className="text-white">"Send Money"</strong> or scan the QR Code below.</p>
                     <p>2. Send the exact amount representing <strong className="text-white">₱{Number(selectedAccount.price).toFixed(2)} PHP</strong> to the Account details below.</p>
-                    <p>3. <strong className="text-[#FFD700]">CRITICAL: Save/screenshot the transaction receipt receipt screen!</strong> You will upload it next.</p>
+                    <p>3. <strong className="text-[#FFD700]">CRITICAL: Save/screenshot the transaction receipt screen!</strong> You will upload it next.</p>
+                    {paymentMethod === "other" && (
+                      <p className="text-emerald-500 font-bold border-t border-zinc-900 pt-2 mt-2 italic">
+                        * Supports Maya, BPI, SeaBank, Gotyme, MariBank, etc. via Instapay/QRPH.
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 items-center bg-black border border-zinc-900 p-4 rounded-sm">
                     <div className="space-y-2">
-                      <span className="block text-[9px] font-mono text-zinc-600 font-bold uppercase text-left">GCash Receiver</span>
+                      <span className="block text-[9px] font-mono text-zinc-600 font-bold uppercase text-left tracking-widest">{paymentMethod === "gcash" ? "GCASH RECEIVER" : "ACCOUNT NUMBER"}</span>
                       <div className="p-2 bg-zinc-950 text-white font-mono text-sm border border-zinc-850 rounded flex items-center justify-between">
                         <div className="flex flex-col text-left">
-                          <span className="text-[8px] text-zinc-500 font-bold uppercase truncate">Name: {gcashSettings.gcash_name}</span>
-                          <span>{gcashSettings.gcash_number}</span>
+                          <span className={`font-bold uppercase truncate ${paymentMethod === "gcash" ? "text-[8px] text-zinc-500" : "text-[10px] text-emerald-400"}`}>
+                            {paymentMethod === "gcash" ? gcashSettings.gcash_name : "KARL ABALUNAN"}
+                          </span>
+                          <span className="text-sm font-bold">{gcashSettings.gcash_number}</span>
                         </div>
                         <button
                           onClick={() => handleCopy(gcashSettings.gcash_number)}
@@ -665,7 +689,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                       {gcashSettings.gcash_qr_url ? (
                         <img
                           src={gcashSettings.gcash_qr_url}
-                          alt="GCash QR Code Receiver"
+                          alt="Payment QR Code Receiver"
                           referrerPolicy="no-referrer"
                           className="w-24 h-24 object-contain"
                         />
@@ -678,7 +702,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
                   </div>
 
                   {copied && (
-                    <p className="text-center text-emerald-400 text-[10px] font-mono">✓ GCash Number copied!</p>
+                    <p className="text-center text-emerald-400 text-[10px] font-mono font-bold">✓ Reference copied!</p>
                   )}
 
                   <div className="flex gap-4 pt-2">

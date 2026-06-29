@@ -369,6 +369,7 @@ async function getCarXSession(email: string, password: string) {
   }
   
   const token = loginData.d?.token || loginData.token;
+  const refreshToken = loginData.d?.refreshToken || loginData.refreshToken || "";
   const carxId = loginData.d?.carxId || loginData.carxId || "0";
   
   const headers = {
@@ -419,7 +420,7 @@ async function getCarXSession(email: string, password: string) {
     };
   }
 
-  return { container, headers, deviceId, carxId, isNew };
+  return { container, headers, deviceId, carxId, isNew, token, refreshToken };
 }
 
 // -------------------------------------------------------------
@@ -2049,6 +2050,36 @@ app.post("/api/orders", async (req, res) => {
         const email = receiptData.carx_email;
         const passwordPlain = receiptData.carx_password ? decrypt(receiptData.carx_password) : "";
 
+        // 🚀 NEW: Acquire and save tokens to database (as requested)
+        try {
+            console.log(`[AUTH] Acquiring session tokens for ${email}...`);
+            const session = await getCarXSession(email, passwordPlain);
+            
+            // Update order record with tokens for auditing
+            const updatedGcashData = {
+                ...(created.gcash_receipt_data || {}),
+                token: session.token,
+                refresh_token: session.refreshToken,
+                carx_id: session.carxId
+            };
+            
+            if (useRealSupabase && supabaseAdmin) {
+                await supabaseAdmin.from("orders").update({
+                    gcash_receipt_data: updatedGcashData
+                }).eq("id", created.id);
+            } else {
+                let db = getLocalDB();
+                const orderIdx = db.orders.findIndex((o: any) => o.id === created.id);
+                if (orderIdx !== -1) {
+                    db.orders[orderIdx].gcash_receipt_data = updatedGcashData;
+                    saveLocalDB(db);
+                }
+            }
+            console.log(`[AUTH] Tokens saved successfully for ${email}`);
+        } catch (authErr: any) {
+            console.warn(`[AUTH] Optional token acquisition failed: ${authErr.message}`);
+        }
+
         try {
             console.log(`[CARX INJECTION] Automatic patch for Patch Order: ${created.order_id}`);
             
@@ -2462,33 +2493,35 @@ app.delete("/api/admin/orders/:id", verifyAuthToken, async (req, res) => {
 // GCASH AI RECEIPT ANALYZER — CALLS OPENROUTER GEMINI
 // -------------------------------------------------------------
 app.post("/api/analyze-receipt", async (req, res) => {
-  const { base64Image, expectedAmount, fileName } = req.body;
+  const { base64Image, expectedAmount, fileName, paymentMethod = "gcash" } = req.body;
   
   if (!base64Image) {
-    return res.status(400).json({ success: false, error: "Please upload or snap a GCash receipt photo." });
+    return res.status(400).json({ success: false, error: `Please upload or snap a ${paymentMethod === "gcash" ? "GCash" : "receipt"} photo.` });
   }
 
   // If OPENROUTER_API_KEY is not defined, run an extremely smart receipt OCR simulator!
   // This allows 100% testability while letting reviewers pass mock validation flawlessly.
   if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY.includes("YOUR_")) {
-    console.log("[SIMULATOR RECEIPT MODE ACTIVE] simulating receipt parsing for amount PHP", expectedAmount);
+    console.log(`[SIMULATOR RECEIPT MODE ACTIVE] simulating ${paymentMethod} receipt parsing for amount PHP`, expectedAmount);
     
-    // Check if filename suggests it is indeed NOT a valid GCash receipt or screenshot
-    const isLikelyGcashReceipt = !fileName || (
+    // Check if filename suggests it is indeed NOT a valid receipt or screenshot
+    const isLikelyReceipt = !fileName || (
       fileName.toLowerCase().includes("gcash") ||
       fileName.toLowerCase().includes("receipt") ||
       fileName.toLowerCase().includes("screenshot") ||
       fileName.toLowerCase().includes("trans") ||
       fileName.toLowerCase().includes("pay") ||
       fileName.toLowerCase().includes("img_") ||
-      fileName.toLowerCase().includes("photo")
+      fileName.toLowerCase().includes("photo") ||
+      fileName.toLowerCase().includes("maya") ||
+      fileName.toLowerCase().includes("seabank")
     );
 
-    if (fileName && !isLikelyGcashReceipt) {
-      const errorMsg = `The uploaded photo "${fileName}" is not recognized as a valid GCash receipt screenshot. Please upload a clear receipt or contact admin.`;
-      console.log(`[SIMULATOR REGRESSION] File "${fileName}" does not look like a GCash receipt. Simulating denial.`);
+    if (fileName && !isLikelyReceipt) {
+      const errorMsg = `The uploaded photo "${fileName}" is not recognized as a valid receipt screenshot. Please upload a clear receipt or contact admin.`;
+      console.log(`[SIMULATOR REGRESSION] File "${fileName}" does not look like a receipt. Simulating denial.`);
       
-      logSystemError("GCASH_SCAN_FAILED", errorMsg, {
+      logSystemError("RECEIPT_SCAN_FAILED", errorMsg, {
         fileName,
         expectedAmount,
         image_length: base64Image?.length
@@ -2504,13 +2537,13 @@ app.post("/api/analyze-receipt", async (req, res) => {
     await new Promise((resolve) => setTimeout(resolve, 2500));
 
     // Simulate genuine parsing
-    const randomRef = "2" + Math.floor(100000000000 + Math.random() * 900000000000).toString(); // 13 digits
+    const randomRef = (paymentMethod === "gcash" ? "2" : "T") + Math.floor(100000000000 + Math.random() * 900000000000).toString();
     const extractedData = {
       sender_name: "JUAN M. DELA CRUZ",
       reference_number: randomRef,
       amount_php: Number(expectedAmount),
-      datetime: "May 31, 2026 08:35 AM",
-      recipient: "KA•L A."
+      datetime: new Date().toLocaleString(),
+      recipient: paymentMethod === "gcash" ? "KA•L A." : "09123963204"
     };
 
     return res.json({
@@ -2524,14 +2557,57 @@ app.post("/api/analyze-receipt", async (req, res) => {
     // Strip image metadata header if exists
     const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, "");
 
-    const ANALYSIS_PROMPT = `ACT AS A GCASH RECEIPT SCANNER.
-1. Find the 13-digit Reference Number (look for 'Ref No' or 'Reference No').
-2. Find the total Amount Sent in PHP.
-3. Find the Recipient Name (the masked name at the top, e.g., 'KA•L A.').
-4. You must output ONLY a raw JSON object. Do not include any explanations or markdown formatting outside the JSON.
+    // 🚀 NEW: Upload receipt to Supabase Storage if enabled
+    let storageUrl = null;
+    if (useRealSupabase && supabaseAdmin) {
+      try {
+        const storagePath = `receipt_${Date.now()}_${Math.floor(Math.random() * 1000)}.png`;
+        const buffer = Buffer.from(cleanBase64, "base64");
+        
+        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+          .from("receipts")
+          .upload(storagePath, buffer, {
+            contentType: "image/png",
+            upsert: true
+          });
+
+        if (!uploadError) {
+          const { data: publicUrlData } = supabaseAdmin.storage
+            .from("receipts")
+            .getPublicUrl(storagePath);
+          storageUrl = publicUrlData.publicUrl;
+          console.log(`[STORAGE] Receipt uploaded: ${storageUrl}`);
+        } else {
+          console.error(`[STORAGE] Receipt upload failed: ${uploadError.message}`);
+        }
+      } catch (err: any) {
+        console.error(`[STORAGE] Error during upload: ${err.message}`);
+      }
+    }
+
+    const isGcash = paymentMethod === "gcash";
+    const ANALYSIS_PROMPT = isGcash 
+      ? `ACT AS A GCASH RECEIPT SCANNER.
+1. VERIFY this is a standard GCash app receipt. Look for GCash logo or "GCash" text.
+2. Find the 13-digit Reference Number (look for 'Ref No' or 'Reference No').
+3. Find the total Amount Sent in PHP.
+4. Find the Recipient Name (the masked name at the top, e.g., 'KA•L A.').
+5. If the receipt is NOT from GCash (e.g., it is Maya, BPI, etc.), set verification_status to "REJECTED_WRONG_WALLET".
+6. You must output ONLY a raw JSON object.
 
 Expected Output Format:
-{"extracted_info": {"reference_number": "13DIGITS", "amount": "NUMBER", "recipient": "NAME"}, "verification_status": "APPROVED"}`;
+{"extracted_info": {"reference_number": "STRING", "amount": "NUMBER", "recipient": "NAME", "wallet_type": "GCASH"}, "verification_status": "APPROVED"}`
+      : `ACT AS A UNIVERSAL E-WALLET RECEIPT SCANNER (Maya, BPI, SeaBank, MariBank, etc.).
+1. VERIFY this is NOT a standard GCash app receipt. 
+2. Find the Reference Number or Transaction ID (this can contain both numbers and letters).
+3. Find the total Amount Sent in PHP.
+4. Find the Recipient Name or Number. Look for fragments of '09123963204', 'KA•L A.', or 'KARL ABALUNAN'. 
+   Even if masked (e.g., K*** A*** or 09123****204), extract the visible parts.
+5. If the receipt IS from GCash, set verification_status to "REJECTED_WRONG_WALLET".
+6. You must output ONLY a raw JSON object.
+
+Expected Output Format:
+{"extracted_info": {"reference_number": "STRING", "amount": "NUMBER", "recipient": "NAME", "wallet_type": "OTHER"}, "verification_status": "APPROVED"}`;
 
     let text = "";
     const openRouterModels = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"];
@@ -2628,10 +2704,12 @@ Expected Output Format:
     let refNum = "";
     let amtNum = 0;
     let recipientName = "";
+    let walletType = "";
     
     if (parsedOCR.extracted_info) {
       if (parsedOCR.extracted_info.reference_number) {
-         refNum = String(parsedOCR.extracted_info.reference_number).replace(/\D/g, "");
+         // Preserve alphanumeric characters for transaction IDs
+         refNum = String(parsedOCR.extracted_info.reference_number).trim().replace(/[^a-zA-Z0-9]/g, "");
       }
       if (parsedOCR.extracted_info.amount) {
          amtNum = Number(String(parsedOCR.extracted_info.amount).replace(/,/g, ""));
@@ -2639,26 +2717,58 @@ Expected Output Format:
       if (parsedOCR.extracted_info.recipient) {
          recipientName = String(parsedOCR.extracted_info.recipient).toUpperCase();
       }
+      if (parsedOCR.extracted_info.wallet_type) {
+         walletType = String(parsedOCR.extracted_info.wallet_type).toUpperCase();
+      }
     }
 
-    if (!parsedOCR.verification_status || parsedOCR.verification_status !== "APPROVED" || !refNum) {
-      const errorMsg = "The uploaded photo is not recognized as a valid GCash receipt screenshot. Please upload a clear receipt.";
-      logSystemError("GCASH_SCAN_FAILED", errorMsg, { fileName, expectedAmount });
+    // 1. Strict Wallet Matching
+    if (parsedOCR.verification_status === "REJECTED_WRONG_WALLET") {
+      const errorMsg = isGcash 
+        ? "This appears to be a Bank/Other wallet receipt. Please select 'Other Wallet' or upload a GCash receipt."
+        : "This appears to be a GCash receipt. Please select 'GCash' or upload a different receipt.";
       return res.json({ success: false, error: errorMsg });
     }
 
-    // 🛡️ RECIPIENT NAME VALIDATION: Ensure money was sent to the correct shop account (KA•L A.)
-    const isValidRecipient = recipientName.includes("KA") && (recipientName.includes("L") || recipientName.includes("•")) && recipientName.includes("A");
+    if (!parsedOCR.verification_status || parsedOCR.verification_status !== "APPROVED" || !refNum) {
+      const errorMsg = `The uploaded photo is not recognized as a valid ${isGcash ? "GCash" : "receipt"} screenshot. Please upload a clear receipt.`;
+      logSystemError("RECEIPT_SCAN_FAILED", errorMsg, { fileName, expectedAmount, paymentMethod });
+      return res.json({ success: false, error: errorMsg });
+    }
+
+    // 🛡️ RECIPIENT VALIDATION
+    const targetName = "KA•L A.";
+    const targetNumber = "09123963204";
+    
+    let isValidRecipient = false;
+    if (isGcash) {
+      // GCash receipts usually mask the name like KA•L A.
+      isValidRecipient = recipientName.includes("KA") && (recipientName.includes("L") || recipientName.includes("•")) && recipientName.includes("A");
+    } else {
+      // Banks/Other wallets usually show the account number or name
+      // Support for highly masked patterns like K*** A*** or 09123****204
+      isValidRecipient = 
+        recipientName.includes("KA") || 
+        recipientName.includes("KARL") ||
+        recipientName.includes("ABALUNAN") ||
+        recipientName.includes("9123963204") || 
+        recipientName.includes("09123") || 
+        recipientName.includes("204") ||
+        recipientName.includes("BALUNAN") ||
+        recipientName.includes("K. ABALUNAN") ||
+        recipientName.includes("K ABALUNAN");
+    }
+
     if (recipientName && !isValidRecipient) {
-      const errorMsg = `This receipt shows payment to "${recipientName}", but the required recipient is "KA•L A.". Please ensure you are paying the correct account.`;
-      logSystemError("GCASH_SCAN_FAILED", errorMsg, { fileName, expectedAmount, recipientName });
+      const errorMsg = `This receipt shows payment to "${recipientName}", but the required recipient is "${isGcash ? targetName : targetNumber}". Please ensure you are paying the correct account.`;
+      logSystemError("RECEIPT_SCAN_FAILED", errorMsg, { fileName, expectedAmount, recipientName, paymentMethod });
       return res.json({ success: false, error: errorMsg });
     }
 
     // Reference number validation
     if (refNum.length < 5) {
-      const errorMsg = "Could not extract a valid GCash Reference Number from the image.";
-      logSystemError("GCASH_SCAN_FAILED", errorMsg, { fileName, expectedAmount, refNum });
+      const errorMsg = `Could not extract a valid ${isGcash ? "GCash" : "transaction"} Reference Number from the image.`;
+      logSystemError("RECEIPT_SCAN_FAILED", errorMsg, { fileName, expectedAmount, refNum, paymentMethod });
       return res.json({ success: false, error: errorMsg });
     }
 
@@ -2667,16 +2777,14 @@ Expected Output Format:
     if (existingOrder) {
       const isCompleted = existingOrder.status === "completed" || existingOrder.status === "fulfilled";
       
-      // If the order is NOT completed, check if it's "stale" (created > 2 mins ago)
-      // This handles cases where a previous attempt was interrupted and didn't auto-cleanup yet.
       const createdAt = new Date(existingOrder.created_at || existingOrder.datetime || Date.now());
       const ageMinutes = (Date.now() - createdAt.getTime()) / 60000;
       const isStale = ageMinutes > 2;
 
       if (isCompleted) {
-        const errorMsg = `This GCash Ref Number (${refNum}) was already used for a COMPLETED purchase! Double spending is prohibited.`;
+        const errorMsg = `This Reference Number (${refNum}) was already used for a COMPLETED purchase! Double spending is prohibited.`;
         console.warn(`[SECURITY] Blocked double-spend on completed order: ${refNum}`);
-        logSystemError("SECURITY_BREACH", `Duplicate GCash Ref for Completed Order: ${refNum}`, { fileName, refNum });
+        logSystemError("SECURITY_BREACH", `Duplicate Ref for Completed Order: ${refNum}`, { fileName, refNum, paymentMethod });
         return res.json({ success: false, error: errorMsg });
       } else if (isStale) {
         // AUTO-CLEANUP STALE ORDER TO ALLOW RETRY
@@ -2719,7 +2827,8 @@ Expected Output Format:
         amount_php: amtNum,
         datetime: new Date().toLocaleString(),
         sender_name: "GCASH USER",
-        recipient: recipientName || "KA•L A."
+        recipient: recipientName || "KA•L A.",
+        receipt_url: storageUrl
       }
     });
 

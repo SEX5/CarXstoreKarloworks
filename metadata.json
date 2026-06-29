@@ -1,6 +1,6 @@
 {
-  "name": "CarX Street Store",
-  "description": "Storefront for purchasing pre-made accounts and ordering ban-safe resource patches",
+  "name": "Karloworks Shop",
+  "description": "The official Karloworks Shop for high-quality CarX mods, resources, and pre-made accounts. Instant automated delivery and verified secure transactions.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

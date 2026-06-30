@@ -137,6 +137,17 @@ export default function PaymentWizard({
         throw new Error(ocrResult.error || "Failed to parse screenshot details.");
       }
 
+      // 🚀 RECOVERY PATH: If server says order is already recovered/completed
+      if (ocrResult.isRecovery && ocrResult.order) {
+        console.log("[RECOVERY] Existing completed order detected. Jumping to complete.");
+        const recoveredOrder = ocrResult.order;
+        setCompletedOrderId(recoveredOrder.order_id);
+        setDeliveredRefNumber(recoveredOrder.gcash_ref_number);
+        setModalStep("order_complete");
+        onComplete(recoveredOrder.order_id, recoveredOrder.gcash_ref_number);
+        return;
+      }
+
       const orderResp = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,7 +181,7 @@ export default function PaymentWizard({
 
     } catch (err: any) {
       if (err.message && (err.message.toLowerCase().includes("fetch") || err.message.toLowerCase().includes("network"))) {
-        setOcrError("INTERRUPT DETECTED: Scanning failed due to a network timeout. Please click 'TRY AGAIN' to re-verify.");
+        setOcrError("INTERRUPT DETECTED: Scanning failed due to a network timeout. Don't worry, your payment is safe. Please click 'TRY AGAIN' to re-verify.");
       } else {
         setOcrError(err.message || "Failed validating payment details.");
       }

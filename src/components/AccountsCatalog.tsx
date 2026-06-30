@@ -226,6 +226,18 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
         throw new Error(ocrResult.error || "Receipt credentials validation failed. Please check snapshot readability.");
       }
 
+      // 🚀 RECOVERY PATH: If server says order is already recovered/completed
+      if (ocrResult.isRecovery && ocrResult.order) {
+        console.log("[RECOVERY] Existing completed order detected. Jumping to delivery.");
+        const recoveredOrder = ocrResult.order;
+        setCurrentOrderId(recoveredOrder.order_id);
+        setDeliveredRefNumber(recoveredOrder.gcash_ref_number);
+        setDeliveredEmail(recoveredOrder.delivered_email);
+        setDeliveredPassword(recoveredOrder.delivered_password || "");
+        setModalStep("delivery_panel");
+        return;
+      }
+
       // 2. Receipt verified! Create a pending order in DB
       const orderResp = await fetch("/api/orders", {
         method: "POST",
@@ -275,7 +287,7 @@ export default function AccountsCatalog({ onNavigate }: AccountsCatalogProps) {
 
     } catch (err: any) {
       if (err.message && (err.message.toLowerCase().includes("fetch") || err.message.toLowerCase().includes("network"))) {
-        setOcrError("INTERRUPT DETECTED: Scanning failed due to a network timeout. Please click 'TRY AGAIN' to re-verify.");
+        setOcrError("INTERRUPT DETECTED: Scanning failed due to a network timeout. Don't worry, your payment is safe. Please click 'TRY AGAIN' to re-verify.");
       } else {
         setOcrError(err.message || "Network exception parsing. Please retry receipt submission.");
       }

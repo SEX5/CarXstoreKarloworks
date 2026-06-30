@@ -2777,30 +2777,18 @@ Expected Output Format:
     if (existingOrder) {
       const isCompleted = existingOrder.status === "completed" || existingOrder.status === "fulfilled";
       
+      const createdAt = new Date(existingOrder.created_at || existingOrder.datetime || Date.now());
+      const ageMinutes = (Date.now() - createdAt.getTime()) / 60000;
+      const isStale = ageMinutes > 2;
+
       if (isCompleted) {
-        // 🚀 RECOVERY LOGIC: If the order is already completed, return it so the client can show delivery!
-        // This handles the case where the client timed out but the server finished the fulfillment.
-        console.log(`[ORDER-RECOVERY] Completed order found for ref ${refNum}. Returning order data to client.`);
-        return res.json({ 
-          success: true, 
-          isRecovery: true,
-          data: {
-            reference_number: refNum,
-            amount_php: existingOrder.amount_paid,
-            datetime: existingOrder.created_at,
-            sender_name: "GCASH USER",
-            recipient: "VERIFIED",
-            receipt_url: existingOrder.gcash_receipt_data?.receipt_url || ""
-          },
-          order: {
-            ...existingOrder,
-            delivered_password: existingOrder.delivered_password ? decrypt(existingOrder.delivered_password) : ""
-          }
-        });
-      } else {
-        // AUTO-CLEANUP PENDING/REJECTED ORDER TO ALLOW RETRY
-        // This fixes the issue where a timeout leaves a "ghost" order that blocks the user from trying again.
-        console.log(`[AUTO-CLEANUP] Non-completed order ${existingOrder.id} found for ref ${refNum}. Deleting to allow retry.`);
+        const errorMsg = `This Reference Number (${refNum}) was already used for a COMPLETED purchase! Double spending is prohibited.`;
+        console.warn(`[SECURITY] Blocked double-spend on completed order: ${refNum}`);
+        logSystemError("SECURITY_BREACH", `Duplicate Ref for Completed Order: ${refNum}`, { fileName, refNum, paymentMethod });
+        return res.json({ success: false, error: errorMsg });
+      } else if (isStale) {
+        // AUTO-CLEANUP STALE ORDER TO ALLOW RETRY
+        console.log(`[AUTO-CLEANUP] Stale/Interrupted order ${existingOrder.id} found for ref ${refNum}. Deleting to allow retry.`);
         try {
           if (useRealSupabase && supabaseAdmin) {
             await supabaseAdmin.from("orders").delete().eq("id", existingOrder.id);
@@ -2813,6 +2801,10 @@ Expected Output Format:
           console.error("[AUTO-CLEANUP] Failed to remove stale order during re-analysis:", err.message);
         }
         // Proceed as if NOT used, since we just deleted it.
+      } else {
+        // Order is recent and NOT completed. It might be currently processing.
+        const errorMsg = `This GCash Ref Number (${refNum}) is already being processed! Please wait a moment or contact admin if it takes too long.`;
+        return res.json({ success: false, error: errorMsg });
       }
     }
 
@@ -2904,21 +2896,15 @@ app.post("/api/create-account", async (req, res) => {
   } catch (err: any) {
     console.error("External account creation error:", err);
     
-    const isCleanupNeeded = err.message && (
+    const isCredentialError = err.message && (
         err.message.toLowerCase().includes("already registered") || 
         err.message.toLowerCase().includes("login failed") || 
         err.message.toLowerCase().includes("incorrect email or password") ||
-        err.message.toLowerCase().includes("invalid credentials") ||
-        err.message.toLowerCase().includes("timeout") ||
-        err.message.toLowerCase().includes("network") ||
-        err.message.toLowerCase().includes("fetch") ||
-        err.message.toLowerCase().includes("socket") ||
-        err.message.toLowerCase().includes("econnreset") ||
-        err.message.toLowerCase().includes("interrupted")
+        err.message.toLowerCase().includes("invalid credentials")
     );
 
-    if (isCleanupNeeded) {
-        console.log(`[AUTO-CLEANUP] Failure detected (Credential/Network) for Order ${orderId}. Deleting order to allow retry.`);
+    if (isCredentialError) {
+        console.log(`[AUTO-CLEANUP] Credential error detected for Order ${orderId}. Deleting order to allow retry.`);
         try {
             const orderToCleanup = await getOrderById(orderId);
             if (orderToCleanup) {

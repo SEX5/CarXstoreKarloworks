@@ -9,6 +9,7 @@ import zlib from "zlib";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Type } from "@google/genai";
+import exifr from "exifr";
 
 // Initialize Gemini client (for fallback OCR)
 const ai = new GoogleGenAI({
@@ -737,6 +738,41 @@ async function getOrderByRefNumber(refNumber: string): Promise<any | null> {
 async function checkRefNumberUsed(refNumber: string): Promise<boolean> {
   const order = await getOrderByRefNumber(refNumber);
   return !!order;
+}
+
+/**
+ * Checks image metadata for evidence of manipulation or suspicious editing software.
+ */
+async function checkExifFraud(imageBuffer: Buffer, fileName: string): Promise<{ isFraud: boolean; reason?: string }> {
+  try {
+    // PNG and some screenshots might not have full EXIF, but we check what's there
+    const metadata = await exifr.parse(imageBuffer, true);
+    if (!metadata) return { isFraud: false };
+
+    const software = String(metadata.Software || "").toLowerCase();
+    const artist = String(metadata.Artist || "").toLowerCase();
+    const userComment = String(metadata.UserComment || "").toLowerCase();
+    const imageDescription = String(metadata.ImageDescription || "").toLowerCase();
+
+    // List of known editing softwares often used for fraudulent modifications
+    const suspiciousSoftware = [
+      "photoshop", "picsart", "canva", "pixlr", "gimp", "snapseed", 
+      "lightroom", "fotor", "befunky", "picmonkey", "pixelmator",
+      "ai photo", "remini", "faceapp", "inshot", "phonto", "over"
+    ];
+
+    for (const app of suspiciousSoftware) {
+      if (software.includes(app) || artist.includes(app) || userComment.includes(app) || imageDescription.includes(app)) {
+        console.warn(`[SECURITY] Fraud detected via EXIF metadata: ${app} in file ${fileName}`);
+        return { isFraud: true, reason: `This image appears to have been edited with ${app.toUpperCase()}. Only original screenshots are accepted.` };
+      }
+    }
+
+    return { isFraud: false };
+  } catch (err) {
+    // If parsing fails, it's likely a standard screenshot without EXIF tags, which is common.
+    return { isFraud: false };
+  }
 }
 
 async function createModdedAccountAPI(customerEmail: string, password: string, accountId: string): Promise<any> {
@@ -2499,9 +2535,19 @@ app.post("/api/analyze-receipt", async (req, res) => {
     return res.status(400).json({ success: false, error: `Please upload or snap a ${paymentMethod === "gcash" ? "GCash" : "receipt"} photo.` });
   }
 
-  // If OPENROUTER_API_KEY is not defined, run an extremely smart receipt OCR simulator!
-  // This allows 100% testability while letting reviewers pass mock validation flawlessly.
-  if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY.includes("YOUR_")) {
+  // 🛡️ SECURITY: EXIF Data check for manipulation
+  const imageBuffer = Buffer.from(base64Image.split(",")[1] || base64Image, "base64");
+  const exifResult = await checkExifFraud(imageBuffer, fileName || "unknown.png");
+  if (exifResult.isFraud) {
+    logSystemError("SECURITY_ALERT", "Edited Image Detected via EXIF", { fileName, exifReason: exifResult.reason });
+    return res.json({ success: false, error: exifResult.reason });
+  }
+
+  // OCR Simulator is now strictly controlled by ENABLE_OCR_SIMULATOR environment variable.
+  // This prevents unauthorized bypasses in production environments.
+  const isSimulatorEnabled = process.env.ENABLE_OCR_SIMULATOR === "true";
+  
+  if (isSimulatorEnabled && (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY.includes("YOUR_"))) {
     console.log(`[SIMULATOR RECEIPT MODE ACTIVE] simulating ${paymentMethod} receipt parsing for amount PHP`, expectedAmount);
     
     // Check if filename suggests it is indeed NOT a valid receipt or screenshot
@@ -2587,27 +2633,28 @@ app.post("/api/analyze-receipt", async (req, res) => {
 
     const isGcash = paymentMethod === "gcash";
     const ANALYSIS_PROMPT = isGcash 
-      ? `ACT AS A GCASH RECEIPT SCANNER.
-1. VERIFY this is a standard GCash app receipt. Look for GCash logo or "GCash" text.
-2. Find the 13-digit Reference Number (look for 'Ref No' or 'Reference No').
-3. Find the total Amount Sent in PHP.
-4. Find the Recipient Name (the masked name at the top, e.g., 'KA•L A.').
-5. If the receipt is NOT from GCash (e.g., it is Maya, BPI, etc.), set verification_status to "REJECTED_WRONG_WALLET".
-6. You must output ONLY a raw JSON object.
+      ? `ACT AS A RIGOROUS GCASH RECEIPT ANALYST AND FRAUD DETECTOR.
+1. VERIFY authenticity: Check for GCash logo, "Ref No", and typical GCash app layout.
+2. DETECT MANIPULATION: Look for inconsistent fonts, misaligned text, suspicious shadows, or pixelation around the amount and reference number. Check if the "100" or other amounts look like they were overlaid with different compression levels.
+3. EXTRACT the 13-digit Reference Number precisely.
+4. EXTRACT the total Amount Sent in PHP.
+5. EXTRACT the Recipient Name (e.g., 'KA•L A.').
+6. CRITICAL: If the image appears edited, fake, or is a photo of another screen with suspicious moiré patterns, set verification_status to "REJECTED_FRAUD_DETECTED".
+7. If it's NOT a GCash receipt, set verification_status to "REJECTED_WRONG_WALLET".
 
-Expected Output Format:
-{"extracted_info": {"reference_number": "STRING", "amount": "NUMBER", "recipient": "NAME", "wallet_type": "GCASH"}, "verification_status": "APPROVED"}`
-      : `ACT AS A UNIVERSAL E-WALLET RECEIPT SCANNER (Maya, BPI, SeaBank, MariBank, etc.).
-1. VERIFY this is NOT a standard GCash app receipt. 
-2. Find the Reference Number or Transaction ID (this can contain both numbers and letters).
-3. Find the total Amount Sent in PHP.
-4. Find the Recipient Name or Number. Look for fragments of '09123963204', 'KA•L A.', or 'KARL ABALUNAN'. 
-   Even if masked (e.g., K*** A*** or 09123****204), extract the visible parts.
-5. If the receipt IS from GCash, set verification_status to "REJECTED_WRONG_WALLET".
-6. You must output ONLY a raw JSON object.
+Output ONLY a raw JSON object:
+{"extracted_info": {"reference_number": "STRING", "amount": "NUMBER", "recipient": "NAME", "wallet_type": "GCASH"}, "verification_status": "APPROVED | REJECTED_WRONG_WALLET | REJECTED_FRAUD_DETECTED"}`
+      : `ACT AS A UNIVERSAL E-WALLET RECEIPT ANALYST AND FRAUD DETECTOR.
+1. VERIFY authenticity: Check for bank/wallet logos and transaction details.
+2. DETECT MANIPULATION: Inspect for edited text, inconsistent fonts, or mismatched backgrounds around the amount/reference number.
+3. EXTRACT the Reference Number or Transaction ID.
+4. EXTRACT the total Amount Sent in PHP.
+5. EXTRACT the Recipient Name or Number (look for '09123963204' or 'KA•L A.').
+6. CRITICAL: If the image appears manipulated, altered, or fraudulent, set verification_status to "REJECTED_FRAUD_DETECTED".
+7. If it IS from GCash, set verification_status to "REJECTED_WRONG_WALLET".
 
-Expected Output Format:
-{"extracted_info": {"reference_number": "STRING", "amount": "NUMBER", "recipient": "NAME", "wallet_type": "OTHER"}, "verification_status": "APPROVED"}`;
+Output ONLY a raw JSON object:
+{"extracted_info": {"reference_number": "STRING", "amount": "NUMBER", "recipient": "NAME", "wallet_type": "OTHER"}, "verification_status": "APPROVED | REJECTED_WRONG_WALLET | REJECTED_FRAUD_DETECTED"}`;
 
     let text = "";
     const openRouterModels = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"];
@@ -2710,6 +2757,14 @@ Expected Output Format:
       if (parsedOCR.extracted_info.reference_number) {
          // Preserve alphanumeric characters for transaction IDs
          refNum = String(parsedOCR.extracted_info.reference_number).trim().replace(/[^a-zA-Z0-9]/g, "");
+
+         // 🛡️ SECURITY: PREVENT REUSE OF RECEIPTS
+         const isUsed = await checkRefNumberUsed(refNum);
+         if (isUsed) {
+           const errorMsg = "This transaction reference number has already been used for another order. Reusing receipts is strictly prohibited.";
+           logSystemError("SECURITY_ALERT", "Duplicate Receipt Reuse Attempted", { fileName, expectedAmount, refNum });
+           return res.json({ success: false, error: errorMsg });
+         }
       }
       if (parsedOCR.extracted_info.amount) {
          amtNum = Number(String(parsedOCR.extracted_info.amount).replace(/,/g, ""));
@@ -2722,7 +2777,13 @@ Expected Output Format:
       }
     }
 
-    // 1. Strict Wallet Matching
+    // 1. Strict Wallet/Fraud Matching
+    if (parsedOCR.verification_status === "REJECTED_FRAUD_DETECTED") {
+      const errorMsg = "Our AI system has detected potential manipulation or inconsistencies in this receipt. Please upload an original, unedited screenshot or contact support.";
+      logSystemError("SECURITY_ALERT", "Fraudulent Receipt Blocked", { fileName, expectedAmount, refNum });
+      return res.json({ success: false, error: errorMsg });
+    }
+
     if (parsedOCR.verification_status === "REJECTED_WRONG_WALLET") {
       const errorMsg = isGcash 
         ? "This appears to be a Bank/Other wallet receipt. Please select 'Other Wallet' or upload a GCash receipt."

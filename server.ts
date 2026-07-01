@@ -747,12 +747,17 @@ async function checkExifFraud(imageBuffer: Buffer, fileName: string): Promise<{ 
   try {
     const lowerName = fileName.toLowerCase();
     
-    // 🛡️ TRUST SIGNALS: Official GCash patterns
-    const isOfficialDownload = /^gcash-\d+-\d+\.png\.jpg$/i.test(lowerName);
-    const isOfficialScreenshot = lowerName.includes("com.globe.gcash.android");
+    // 🛡️ TRUST SIGNALS: Official App patterns (Android Package Names)
+    const isOfficialGCash = /^gcash-\d+-\d+\.png\.jpg$/i.test(lowerName) || lowerName.includes("com.globe.gcash.android");
+    const isOfficialBPI = lowerName.includes("com.bpi.ng.app") || lowerName.includes("com.bpi.mobile.banking");
+    const isOfficialBDO = lowerName.includes("ph.com.bdo.retail") || lowerName.includes("ph.com.bdo.pay") || lowerName.includes("com.bdo.mobilebanking");
+    const isOfficialMaya = lowerName.includes("com.paymaya");
+    const isOfficialSeaBank = lowerName.includes("ph.seabank.seabank") || lowerName.includes("ph.com.seabank.mobile");
+    const isOfficialGoTyme = lowerName.includes("ph.com.gotyme");
+    const isOfficialUnionBank = lowerName.includes("com.unionbankph.online");
 
-    if (isOfficialDownload || isOfficialScreenshot) {
-      console.log(`[SECURITY] Trusted filename pattern detected: ${fileName}`);
+    if (isOfficialGCash || isOfficialBPI || isOfficialBDO || isOfficialMaya || isOfficialSeaBank || isOfficialGoTyme || isOfficialUnionBank) {
+      console.log(`[SECURITY] Trusted official source detected: ${fileName}`);
       return { isFraud: false, isTrustedSource: true };
     }
 
@@ -2680,12 +2685,12 @@ app.post("/api/analyze-receipt", async (req, res) => {
 
 Output ONLY a raw JSON object:
 {"extracted_info": {"reference_number": "STRING", "amount": "NUMBER", "recipient": "NAME", "wallet_type": "GCASH"}, "verification_status": "APPROVED | REJECTED_WRONG_WALLET | REJECTED_FRAUD_DETECTED"}`
-      : `ACT AS A UNIVERSAL E-WALLET RECEIPT ANALYST.${analysisContext}
-1. VERIFY authenticity: Check for bank/wallet logos and transaction details.
-2. DETECT MANIPULATION: Inspect for edited text or mismatched fonts around the amount/reference number.
-3. EXTRACT the Reference Number or Transaction ID.
+      : `ACT AS A UNIVERSAL E-WALLET AND BANKING RECEIPT ANALYST.${analysisContext}
+1. VERIFY authenticity: Check for official bank (BPI, BDO, SeaBank) or wallet (Maya, ShopeePay) logos.
+2. DETECT MANIPULATION: Inspect the Amount and Ref No. Look for digital "patching" where text looks cleaner/sharper than the rest of the image.
+3. EXTRACT the Reference Number, Transaction ID, or Confirmation No.
 4. EXTRACT the total Amount Sent in PHP.
-5. EXTRACT the Recipient Name or Number (look for '09123963204' or 'KA•L A.').
+5. EXTRACT the Recipient (Look for '09123963204' or 'KA•L A.').
 6. CRITICAL: If the image is CLEARLY manipulated, set verification_status to "REJECTED_FRAUD_DETECTED".
 7. If it IS from GCash, set verification_status to "REJECTED_WRONG_WALLET".
 

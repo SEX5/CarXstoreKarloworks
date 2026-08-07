@@ -191,7 +191,6 @@ function getLocalDB() {
         { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
         { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
         { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" },
-        { id: 14, patch_type: "restore", label: "Cloud Snapshot Restoration", price: 50.00, description: "Full Projective Cloning of Cloud Backups" }
       ],
       settings: [
         { key: "gcash_number", value: "09123963204" },
@@ -201,7 +200,6 @@ function getLocalDB() {
         { key: "is_online", value: "true" },
         { key: "maintenance_mode", value: "false" }
       ],
-      auto_backups: []
     };
     fs.writeFileSync(DB_FILE_PATH, JSON.stringify(initialSeed, null, 2), "utf8");
     return initialSeed;
@@ -210,16 +208,10 @@ function getLocalDB() {
     const data = fs.readFileSync(DB_FILE_PATH, "utf8");
     const db = JSON.parse(data);
     
-    // Migration: Ensure 'restore' pricing exists
-    if (db.patch_pricing && !db.patch_pricing.find((p: any) => p.patch_type === "restore")) {
-        db.patch_pricing.push({ id: 14, patch_type: "restore", label: "Cloud Snapshot Restoration", price: 50.00, description: "Full Projective Cloning of Cloud Backups" });
-        fs.writeFileSync(DB_FILE_PATH, JSON.stringify(db, null, 2), "utf8");
-    }
     
     return db;
   } catch (err) {
-    console.error("Local DB read failed parsing, falling back to mock");
-    return { accounts: [], orders: [], patch_pricing: [], settings: [], auto_backups: [] };
+    console.error("Local DB read failed parsing, falling back to mock"); return { accounts: [], orders: [], patch_pricing: [], settings: [] };
   }
 }
 
@@ -482,7 +474,6 @@ async function getPatchPricing(): Promise<any[]> {
     { id: 11, patch_type: "custom_resources", label: "Custom Resources", price: 200.00, description: "Custom silver/gold amount" },
     { id: 12, patch_type: "unlock_real_estate", label: "UNLOCK ALL APARTMENTS (REAL ESTATE)", price: 300.00, description: "Unlocks all Real Estate Houses on your active profile" },
     { id: 13, patch_type: "unlock_customs", label: "UNLOCK ALL CUSTOMS (BANNERS, AVATARS, FRAMES)", price: 250.00, description: "Unlocks all Banners, Avatars, and Frames" },
-    { id: 14, patch_type: "restore", label: "Cloud Snapshot Restoration", price: 50.00, description: "Full Projective Cloning of Cloud Backups" }
   ];
 
   let dbPricing: any[] = [];
@@ -1234,364 +1225,6 @@ app.get("/api/master-catalog", async (req, res) => {
     }
 });
 
-// -------------------------------------------------------------
-// BACKUP & RESTORE UTILITIES
-// -------------------------------------------------------------
-
-// Internal logic for performing a snapshot backup
-async function performBackup(email: string, password: string) {
-    if (!supabaseAdmin) {
-        throw new Error("Cloud Storage (Supabase) is not configured. Backup feature disabled.");
-    }
-
-    console.log(`[BACKUP] Capturing identity snapshot for ${email}...`);
-    
-    // 1. Anti-Ban Validation (definitive probe)
-    try {
-        console.log(`[BACKUP] Probing account health for ${email}...`);
-        await injectResourcesAPI(email, password, 1, 1, 0); 
-    } catch (err: any) {
-        console.error(`[BACKUP] Account health check failed for ${email}:`, err.message);
-        throw new Error("⚠️ THIS ACCOUNT IS BANNED. We cannot capture snapshots for banned accounts. Please restore a valid backup to a new account first.");
-    }
-
-    // 2. Use direct protocol for full snapshot
-    const session = await getCarXSession(email, password);
-    const { container } = session;
-    const fullProfile = decryptCarXPayload(container.compressed_data);
-    
-    // 2. Prepare for upload
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const safeEmail = email.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-    const fileName = `${safeEmail}/${timestamp}_snapshot.json`;
-    
-    // 3. Upload to Supabase Storage
-    const bucketName = "backandrestore";
-    const { error: uploadError } = await supabaseAdmin.storage
-        .from(bucketName)
-        .upload(fileName, JSON.stringify(fullProfile, null, 2), {
-            contentType: "application/json",
-            upsert: true
-        });
-
-    if (uploadError) throw new Error(`Storage error: ${uploadError.message}`);
-
-    // Trigger background cleanup (keeps last 7 snapshots)
-    cleanupBackups(email).catch(e => console.error("[CLEANUP] Error:", e.message));
-
-    return { fileName, timestamp: new Date().toISOString() };
-}
-
-// Keep only the absolute most recent snapshot for an account
-// Logic: This is only called after a successful health-check + backup, 
-// ensuring we only delete old snapshots when we have a confirmed "Good" replacement.
-async function cleanupBackups(email: string) {
-    if (!supabaseAdmin) return;
-    const bucketName = "backandrestore";
-    const safeEmail = email.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-    
-    const { data: files, error } = await supabaseAdmin.storage
-        .from(bucketName)
-        .list(safeEmail, {
-            limit: 100,
-            offset: 0,
-            sortBy: { column: 'name', order: 'desc' }
-        });
-
-    if (error || !files || files.length === 0) return;
-
-    // Filter for snapshot files only
-    const snapshots = files.filter(f => f.name.endsWith("_snapshot.json"));
-    if (snapshots.length <= 1) return; // Keep at least the latest one
-
-    // [BAN PROTECTION] snapshots[0] is the absolute latest (confirmed healthy)
-    // We only delete older snapshots because we just successfully verified and backed up the account.
-    // If the account was banned, performBackup would have failed BEFORE calling this.
-    const toDelete = snapshots.slice(1).map(f => `${safeEmail}/${f.name}`);
-
-    if (toDelete.length > 0) {
-        const { error: delError } = await supabaseAdmin.storage.from(bucketName).remove(toDelete);
-        if (!delError) {
-            console.log(`[CLEANUP] Account ${email} is HEALTHY. Rotating snapshots (Kept latest, removed ${toDelete.length} legacy versions).`);
-        } else {
-            console.error(`[CLEANUP] Failed to remove legacy files for ${email}:`, delError.message);
-        }
-    }
-}
-
-// Create a backup of the current garage profile (Full Snapshot)
-app.post("/api/garage/backup", async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ error: "Email and password are required for backup." });
-    }
-
-    try {
-        const result = await performBackup(email, password);
-        
-        // AUTOMATICALLY enroll/update in auto_backups since they successfully backed up!
-        const db = getLocalDB();
-        db.auto_backups = db.auto_backups || [];
-        const existingIndex = db.auto_backups.findIndex((b: any) => b.email === email);
-        const entry = {
-            email,
-            password: encrypt(password), // Encrypt sensitive credentials
-            enabled: true,
-            status: "Healthy",
-            last_backup: new Date().toISOString(),
-            created_at: existingIndex >= 0 ? db.auto_backups[existingIndex].created_at : new Date().toISOString()
-        };
-        
-        if (existingIndex >= 0) {
-            db.auto_backups[existingIndex] = entry;
-        } else {
-            db.auto_backups.push(entry);
-        }
-        saveLocalDB(db);
-
-        res.json({ 
-            success: true, 
-            message: "Identity snapshot successfully captured and stored in cloud. Hourly Auto-Backup is now active!",
-            ...result
-        });
-    } catch (err: any) {
-        console.error("[BACKUP] General error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// -------------------------------------------------------------
-// AUTOMATIC BACKUP SCHEDULER
-// -------------------------------------------------------------
-
-// Toggle auto-backup settings
-app.post("/api/garage/autobackup/setup", async (req, res) => {
-    const { email, password, enabled } = req.body;
-    if (!email || (enabled && !password)) {
-        return res.status(400).json({ error: "Email and password are required to enable auto-backup." });
-    }
-
-    try {
-        const db = getLocalDB();
-        db.auto_backups = db.auto_backups || [];
-        
-        const existingIndex = db.auto_backups.findIndex((b: any) => b.email === email);
-        
-        if (enabled) {
-            const entry = {
-                email,
-                password: encrypt(password), // Encrypt sensitive credentials
-                enabled: true,
-                last_backup: existingIndex >= 0 ? db.auto_backups[existingIndex].last_backup : null,
-                created_at: existingIndex >= 0 ? db.auto_backups[existingIndex].created_at : new Date().toISOString()
-            };
-            
-            if (existingIndex >= 0) {
-                db.auto_backups[existingIndex] = entry;
-            } else {
-                db.auto_backups.push(entry);
-            }
-        } else {
-            if (existingIndex >= 0) {
-                db.auto_backups[existingIndex].enabled = false;
-            }
-        }
-        
-        saveLocalDB(db);
-        res.json({ success: true, message: `Auto-backup ${enabled ? "enabled" : "disabled"} successfully.` });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Get auto-backup status
-app.post("/api/garage/autobackup/status", async (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email required." });
-
-    try {
-        const db = getLocalDB();
-        const entry = (db.auto_backups || []).find((b: any) => b.email === email);
-        res.json({ 
-            success: true, 
-            enabled: entry ? entry.enabled : false, 
-            last_backup: entry ? entry.last_backup : null,
-            status: entry ? (entry.status || "Healthy") : "Healthy"
-        });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Background worker: Checks for pending backups (1h interval)
-async function runBackupWorker() {
-    try {
-        if (!supabaseAdmin) {
-            console.warn("[AUTO-BACKUP] Skipping worker run: Supabase storage is not configured.");
-            return;
-        }
-        const db = getLocalDB();
-        const now = Date.now();
-        const oneHour = 1 * 60 * 60 * 1000;
-        
-        const pending = (db.auto_backups || []).filter((b: any) => {
-            if (!b.enabled) return false;
-            if (!b.last_backup) return true; // Never backed up
-            const lastTime = new Date(b.last_backup).getTime();
-            return (now - lastTime) >= oneHour;
-        });
-
-        if (pending.length > 0) {
-            console.log(`[AUTO-BACKUP] Found ${pending.length} pending automated snapshots...`);
-            
-            for (const task of pending) {
-                try {
-                    const decryptedPass = decrypt(task.password);
-                    await performBackup(task.email, decryptedPass);
-                    
-                    // Update backup details and mark as healthy
-                    const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
-                    if (idx >= 0) {
-                        db.auto_backups[idx].last_backup = new Date().toISOString();
-                        db.auto_backups[idx].status = "Healthy";
-                    }
-                    console.log(`[AUTO-BACKUP] SUCCESS for ${task.email}`);
-                } catch (err: any) {
-                    console.error(`[AUTO-BACKUP] FAILED for ${task.email}:`, err.message);
-                    
-                    const lowerMsg = err.message.toLowerCase();
-                    const isBanOrAuth = lowerMsg.includes("rejected") || lowerMsg.includes("invalid") || lowerMsg.includes("banned") || lowerMsg.includes("suspended");
-                    
-                    const idx = db.auto_backups.findIndex((b: any) => b.email === task.email);
-                    if (idx >= 0) {
-                        if (isBanOrAuth) {
-                            // [BAN DETECTION RETENTION PROTOCOL]
-                            // Do NOT disable the worker, and do NOT delete/clean up any snapshots.
-                            // We set status to indicate they are safe.
-                            db.auto_backups[idx].status = "Suspended/Banned - Snapshots Safe";
-                            console.warn(`[AUTO-BACKUP] BAN DETECTED for ${task.email}. Bypassing snapshot cleanup to preserve previous secure backups.`);
-                        } else {
-                            db.auto_backups[idx].status = `Error: ${err.message}`;
-                        }
-                        
-                        // Set the check timestamp so it doesn't spin-loop retry every 5 minutes
-                        db.auto_backups[idx].last_backup = new Date().toISOString();
-                    }
-                }
-            }
-            saveLocalDB(db);
-        }
-    } catch (err: any) {
-        console.error("[AUTO-BACKUP] Worker error:", err.message);
-    }
-}
-
-console.log("[AUTO-BACKUP] Background worker initialized. Checking every 5 minutes.");
-runBackupWorker(); // Run immediately on startup
-setInterval(runBackupWorker, 300000); // 5 minute check interval
-
-// List all backups for a specific account
-app.post("/api/garage/backups/list", async (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required to list backups." });
-
-    try {
-        if (!supabaseAdmin) throw new Error("Cloud Storage not available.");
-
-        const bucketName = "backandrestore";
-        const safeEmail = email.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-
-        const { data, error } = await supabaseAdmin.storage
-            .from(bucketName)
-            .list(safeEmail, {
-                limit: 100,
-                offset: 0,
-                sortBy: { column: "name", order: "desc" }
-            });
-
-        if (error) throw new Error(error.message);
-
-        const backups = (data || []).map((f: any) => ({
-            name: f.name,
-            path: `${safeEmail}/${f.name}`,
-            created_at: f.created_at,
-            size: f.metadata?.size
-        }));
-
-        res.json({ success: true, backups });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Restore a specific backup
-app.post("/api/garage/restore", async (req, res) => {
-    const { email, password, backupPath } = req.body;
-    if (!email || !password || !backupPath) {
-        return res.status(400).json({ error: "Email, password, and backup path are required." });
-    }
-
-    try {
-        if (!supabaseAdmin) throw new Error("Cloud Storage not available.");
-
-        console.log(`[SYNC] [RESTORE] Initializing Full Wipe & Clone Sequence for ${email}: ${backupPath}`);
-        
-        // 1. Download snapshot
-        const bucketName = "backandrestore";
-        const { data: snapshotBlob, error: downloadError } = await supabaseAdmin.storage
-            .from(bucketName)
-            .download(backupPath);
-
-        if (downloadError) throw new Error(`Backup storage access failed: ${downloadError.message}`);
-        const sourceProfile = JSON.parse(await snapshotBlob.text());
-
-        // 2. Get Target session
-        const { container, headers } = await getCarXSession(email, password);
-        const targetProfile = decryptCarXPayload(container.compressed_data);
-
-        // 3. The Cloner Logic: Wipe & Identity Projection
-        console.log(`[SYNC] Wiping target data and projecting source onto ${email}`);
-        
-        const identityData = {
-          profile: targetProfile.profile,
-          location_id: targetProfile.location_id
-        };
-
-        const newProfile = { ...sourceProfile, ...identityData };
-        
-        // 4. Sanitize and Repair
-        const repairedProfile = validateAndRepairProfile(newProfile);
-
-        // 5. Upload to CarX Sync
-        const newPayload = encryptCarXPayload(repairedProfile);
-        const syncBody = {
-          ...container,
-          compressed_data: newPayload,
-          lastSyncTime: Math.floor(Date.now() / 1000)
-        };
-
-        const pushResp = await fetch("https://street-prod.carx-online.com/str/v1/client/profiles", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(syncBody)
-        });
-
-        if (!pushResp.ok) {
-          const pushErr = await pushResp.text();
-          throw new Error(`Cloud Sync Rejected: ${pushErr}`);
-        }
-
-        res.json({ 
-            success: true, 
-            message: "Restore successful. Full identity projection complete."
-        });
-
-    } catch (err: any) {
-        console.error("[RESTORE] Error:", err.message);
-        res.status(500).json({ error: "Restore Failed: " + err.message });
-    }
-});
-
 // Public Accounts list
 app.get("/api/accounts", async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -2169,57 +1802,6 @@ app.post("/api/orders", async (req, res) => {
                 console.log(`[CARX INJECTION] Real Estate injected successfully.`);
             }
 
-            if (receiptData.patch_type === "restore") {
-                const backupPath = details.backupPath;
-                if (!backupPath) throw new Error("No backup snapshot path provided for restore.");
-
-                console.log(`[SYNC] [RESTORE] Initializing Full Wipe & Clone Sequence: ${backupPath}`);
-                
-                // 1. Download snapshot
-                const { data: snapshotBlob, error: downloadError } = await supabaseAdmin.storage
-                    .from("backandrestore")
-                    .download(backupPath);
-
-                if (downloadError) throw new Error(`Storage access failed: ${downloadError.message}`);
-                const sourceProfile = JSON.parse(await snapshotBlob.text());
-
-                // 2. Get Target session
-                const { container, headers } = await getCarXSession(email, passwordPlain);
-                const targetProfile = decryptCarXPayload(container.compressed_data);
-
-                // 3. The Cloner Logic: Wipe & Identity Projection
-                console.log(`[SYNC] Wiping target data and projecting source onto ${email}`);
-                
-                const identityData: any = {};
-                if (targetProfile.profile) identityData.profile = targetProfile.profile;
-                if (targetProfile.location_id) identityData.location_id = targetProfile.location_id;
-
-                const newProfile = { ...sourceProfile, ...identityData };
-                
-                // 4. Sanitize and Repair
-                const repairedProfile = validateAndRepairProfile(newProfile);
-
-                // 5. Upload to CarX Sync
-                const newPayload = encryptCarXPayload(repairedProfile);
-                const syncBody = {
-                  ...container,
-                  compressed_data: newPayload,
-                  lastSyncTime: Math.floor(Date.now() / 1000)
-                };
-
-                const pushResp = await fetch("https://street-prod.carx-online.com/str/v1/client/profiles", {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify(syncBody)
-                });
-
-                if (!pushResp.ok) {
-                  const pushErr = await pushResp.text();
-                  throw new Error(`Cloud Sync Rejected: ${pushErr}`);
-                }
-
-                console.log(`[SYNC] [RESTORE] Full identity projection complete for ${email}`);
-            }
             
             await updateOrderStatus(created.id, "completed");
             console.log(`[CARX INJECTION] Order ${created.order_id} marked as completed.`);
@@ -2352,8 +1934,9 @@ app.get("/api/admin/orders", verifyAuthToken, async (req, res) => {
     const list = await getOrders();
     const mapped = list.map((o: any) => {
       let plaintextPassword = "No password";
-      if (o.carx_password) {
-        plaintextPassword = decrypt(o.carx_password);
+      const encryptedPass = o.carx_password || o.gcash_receipt_data?.carx_password;
+      if (encryptedPass) {
+        plaintextPassword = decrypt(encryptedPass);
       }
       return {
         ...o,
@@ -3073,6 +2656,7 @@ async function seedSupabaseIfNeeded() {
 // Vite Server Initialization & SPA Fallback routing
 // -------------------------------------------------------------
 async function initServer() {
+  console.log(`[INIT] Starting server. NODE_ENV: ${process.env.NODE_ENV}`);
   if (useRealSupabase && supabaseAdmin) {
     await seedSupabaseIfNeeded();
   }
@@ -3085,21 +2669,15 @@ async function initServer() {
     app.use(vite.middlewares);
     console.log("Vite development middleware integrated successfully.");
   } else {
-    const distPath = path.resolve(process.cwd(), "dist");
-    const indexPath = path.resolve(distPath, "index.html");
+    const distPath = path.join(process.cwd(), "dist");
+    const indexPath = path.join(distPath, "index.html");
     
-    console.log(`[PRODUCTION] Serving static files from: ${distPath}`);
-    if (!fs.existsSync(indexPath)) {
-      console.error(`[CRITICAL ERROR] index.html not found at: ${indexPath}`);
-      // Fallback for debugging if needed
-    }
-
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
-        res.status(404).send("Application shell (index.html) is missing. If you are deploying, ensure 'npm run build' completed successfully.");
+        res.status(404).send("Application shell (index.html) is missing. Please ensure 'npm run build' completed successfully.");
       }
     });
   }

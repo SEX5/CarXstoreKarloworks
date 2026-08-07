@@ -10,7 +10,6 @@ import OrderPatch from "./OrderPatch";
 import OrderStatus from "./components/OrderStatus";
 import AdminPanel from "./components/AdminPanel";
 import RecoveryCenter from "./components/RecoveryCenter";
-import CloudVault from "./components/CloudVault";
 import SuccessPage from "./components/SuccessPage";
 import CancelPage from "./components/CancelPage";
 
@@ -51,8 +50,6 @@ export default function App() {
         setCurrentView("admin");
       } else if (path === "/recovery") {
         setCurrentView("recovery");
-      } else if (path === "/vault") {
-        setCurrentView("vault");
       } else if (path === "/success") {
         setCurrentView("success");
       } else if (path === "/cancel") {
@@ -133,16 +130,6 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => navigateTo("vault")}
-              className={`cursor-pointer transition-colors hover:text-white pb-1 border-b-2 flex items-center gap-1.5 ${
-                currentView === "vault" ? "text-[#FFD700] border-[#FFD700]" : "text-gray-400 border-transparent"
-              }`}
-            >
-              Vault
-              <span className="text-[7px] bg-[#FFD700] text-black px-1 py-0 rounded font-black animate-pulse">ACTIVE</span>
-            </button>
-
-            <button
               onClick={() => navigateTo("recovery")}
               className={`cursor-pointer transition-colors hover:text-white pb-1 border-b-2 ${
                 currentView === "recovery" ? "text-[#FFD700] border-[#FFD700]" : "text-gray-400 border-transparent"
@@ -204,15 +191,6 @@ export default function App() {
               Order Patch
             </button>
             <button
-              onClick={() => navigateTo("vault")}
-              className={`text-left py-2 font-mono text-xs font-bold uppercase tracking-wide flex items-center justify-between ${
-                currentView === "vault" ? "text-[#FFD700]" : "text-gray-400"
-              }`}
-            >
-              <span>Back & Restore</span>
-              <span className="text-[7px] bg-[#FFD700] text-black px-1 py-0.5 rounded font-black">ACTIVE</span>
-            </button>
-            <button
               onClick={() => navigateTo("recovery")}
               className={`text-left py-2 font-mono text-xs font-bold uppercase tracking-wide ${
                 currentView === "recovery" ? "text-[#FFD700]" : "text-gray-400"
@@ -270,7 +248,6 @@ export default function App() {
         {currentView === "home" && <Home onNavigate={navigateTo} />}
         {currentView === "accounts" && <AccountsCatalog onNavigate={navigateTo} />}
         {currentView === "order" && <OrderPatch onNavigate={navigateTo} viewParam={viewParam} />}
-        {currentView === "vault" && <CloudVault onNavigate={navigateTo} />}
         {currentView === "recovery" && <RecoveryCenter onNavigate={navigateTo} />}
         {currentView === "order_status" && <OrderStatus orderId={orderIdParam || ""} onNavigate={navigateTo} />}
         {currentView === "admin" && <AdminPanel />}

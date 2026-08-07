@@ -804,7 +804,10 @@ export default function AdminPanel() {
                           <button
                             onClick={() => {
                               setActiveReceiptUrl(o.gcash_receipt_url || "");
-                              setActiveOcrData(o.gcash_receipt_data);
+                              setActiveOcrData({
+                                ...o.gcash_receipt_data,
+                                decrypted_password: o.decrypted_password
+                              });
                             }}
                             className="inline-flex items-center gap-1.5 px-2 py-1 bg-[#111] hover:bg-[#222] text-zinc-400 hover:text-[#FFD700] rounded text-[10px] font-mono border border-zinc-800 transition-colors"
                           >
@@ -1648,6 +1651,29 @@ export default function AdminPanel() {
                       <span className="text-zinc-600 block text-[9px] font-bold">RECIPIENT CHANNEL</span>
                       <strong className="text-zinc-500 uppercase">{activeOcrData?.recipient || "STORE MANUAL ENTRY"}</strong>
                     </div>
+
+                    {activeOcrData?.decrypted_password && (
+                      <div className="border-t border-zinc-900 pt-2 bg-[#FF3333]/5 p-2 rounded">
+                        <span className="text-[#FF3333] block text-[9px] font-bold">DECRYPTED PASSWORD</span>
+                        <strong className="text-white font-mono break-all selection:bg-[#FF3333] selection:text-white">{activeOcrData.decrypted_password}</strong>
+                      </div>
+                    )}
+
+                    {activeOcrData?.carx_id && (
+                      <div className="border-t border-zinc-900 pt-2">
+                        <span className="text-cyan-600 block text-[9px] font-bold">CARX ID</span>
+                        <strong className="text-cyan-400 font-mono text-[10px]">{activeOcrData.carx_id}</strong>
+                      </div>
+                    )}
+
+                    {activeOcrData?.refresh_token && (
+                      <div className="border-t border-zinc-900 pt-2">
+                        <span className="text-zinc-600 block text-[9px] font-bold">REFRESH TOKEN</span>
+                        <div className="max-h-20 overflow-y-auto mt-1 p-1 bg-black rounded border border-zinc-900">
+                          <p className="text-[8px] text-zinc-500 font-mono break-all">{activeOcrData.refresh_token}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

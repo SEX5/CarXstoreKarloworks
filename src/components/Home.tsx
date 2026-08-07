@@ -218,15 +218,6 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
                 </button>
 
                 <button
-                  onClick={() => onNavigate("vault")}
-                  className="group relative cursor-pointer px-6 py-3.5 bg-[#FFD700]/10 border border-[#FFD700]/30 hover:bg-[#FFD700] hover:text-black text-[#FFD700] font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
-                  id="btn-nav-vault"
-                >
-                  <span>Backup & Restore</span>
-                  <Cloud className="w-4 h-4" />
-                </button>
-
-                <button
                   onClick={() => onNavigate("recovery")}
                   className="group relative cursor-pointer px-6 py-3.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-500 text-zinc-400 hover:text-white font-black uppercase text-xs tracking-wider transition-all rounded-sm flex items-center justify-center gap-2"
                   id="btn-nav-recovery"
@@ -268,29 +259,7 @@ export default function Home({ onNavigate, settings = {} }: HomeProps) {
       </div>
 
         {/* Feature Highlights Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-14" id="features-highlights">
-          {/* VIRTUAL CLOUD DISK - NEW HIGHLIGHT */}
-          <div 
-            onClick={() => onNavigate("vault")}
-            className="p-6 rounded-lg bg-[#0F0F0F] border border-[#FFD700]/30 hover:border-[#FFD700] transition-all flex flex-col items-start gap-4 group cursor-pointer relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-               <UploadCloud className="w-20 h-20 text-white" />
-            </div>
-            <div className="p-3 bg-[#FFD700]/10 border border-[#FFD700]/20 text-[#FFD700] rounded-sm">
-              <Cloud className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="font-display font-bold text-base text-white uppercase italic tracking-tight">Backup & Restore</h3>
-                <span className="text-[8px] font-mono bg-emerald-500 text-black px-1 rounded font-black">FREE SYNC</span>
-              </div>
-              <p className="text-zinc-400 text-xs leading-relaxed font-sans">
-                Securely store profile snapshots of your progress. Move resources across accounts or save a backup before applying experimental patches.
-              </p>
-            </div>
-          </div>
-
+        <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-6 mb-14" id="features-highlights">
           {/* Card 1 */}
           <div className="p-6 rounded-lg bg-[#0A0A0A] border border-[#1A1A1A] hover:border-[#FFD700] transition-colors flex flex-col items-start gap-4 group">
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-sm">
